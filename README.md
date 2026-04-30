@@ -187,7 +187,7 @@ Example retrieval test:
 
 ## Tech Stack
 
-- Language: Python
+- Language: Python 3.12
 - App Framework: Streamlit
 - RAG Framework: LangChain
 - Vector Database: Chroma
@@ -245,19 +245,19 @@ git clone https://github.com/helsharif/cobb-county-code-rag-assistant.git
 cd cobb-county-code-rag-assistant
 ```
 
-### 2. Create a virtual environment
+### 2. Create a Python 3.12 virtual environment
 
 Windows PowerShell:
 
 ```powershell
-python -m venv .venv
+py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
 macOS/Linux:
 
 ```bash
-python -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 ```
 
