@@ -74,15 +74,29 @@ def render_chat_tab() -> None:
                 }
             )
 
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-            if message["role"] == "assistant" and message.get("source_mode"):
-                st.caption(f"Answer source: {message['source_mode']}")
-            if message.get("sources"):
-                with st.expander("Sources"):
-                    for source in message["sources"]:
-                        st.write(source)
+    for exchange in _latest_first_exchanges(st.session_state.messages):
+        for message in exchange:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
+                if message["role"] == "assistant" and message.get("source_mode"):
+                    st.caption(f"Answer source: {message['source_mode']}")
+                if message.get("sources"):
+                    with st.expander("Sources"):
+                        for source in message["sources"]:
+                            st.write(source)
+
+
+def _latest_first_exchanges(messages: list[dict]) -> list[list[dict]]:
+    exchanges: list[list[dict]] = []
+    current: list[dict] = []
+    for message in messages:
+        if message["role"] == "user" and current:
+            exchanges.append(current)
+            current = []
+        current.append(message)
+    if current:
+        exchanges.append(current)
+    return list(reversed(exchanges))
 
 
 def render_about_tab() -> None:
