@@ -79,9 +79,9 @@ Current local development corpus:
 | Approximate raw PDF size | 60 MB |
 | Loaded PDF pages | 4,093+ |
 | Generated vector chunks | 13,844 |
-| Public repo data policy | Raw PDFs excluded |
+| Public repo data policy | Raw PDFs excluded, vectorstore tracked with Git LFS |
 
-The `data/README.md` file explains where users should place their own PDFs before rebuilding the vector index.
+The `data/README.md` file explains where users should place their own PDFs before rebuilding the vector index. The generated Chroma `vectorstore/` is tracked with Git LFS so Streamlit Community Cloud can load the demo index without private raw PDFs.
 
 ---
 
@@ -230,9 +230,12 @@ Excluded from GitHub:
 - `secrets/`
 - `notes/`
 - `data/raw/`
-- `vectorstore/`
 - `.venv/`
 - `.tiktoken_cache/`
+
+Tracked with Git LFS:
+
+- `vectorstore/**`
 
 ---
 
@@ -384,7 +387,8 @@ Suggested portfolio screenshots:
 - Environment variables isolated in `.env`
 - Public `.env.example` template
 - No hardcoded secrets
-- Raw PDFs and vector databases excluded from Git
+- Raw PDFs excluded from Git
+- Chroma vectorstore tracked with Git LFS for Streamlit Community Cloud deployment
 - Rebuildable vector index
 - Source metadata retained for citations
 - Dockerized local deployment

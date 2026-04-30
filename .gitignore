@@ -9,6 +9,5 @@ __pycache__/
 .ipynb_checkpoints/
 data/raw/
 data/**/*.pdf
-vectorstore/
 .streamlit/secrets.toml
 streamlit*.log
