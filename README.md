@@ -273,7 +273,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Fill in your selected provider keys:
+Fill in your selected provider keys. Keep `.env` local only and never commit it:
 
 ```text
 OPEN_API_KEY=<your-openai-key>
@@ -282,6 +282,14 @@ SERPAPI_API_KEY=<your-serpapi-key>
 LLM_PROVIDER=openai
 EMBEDDING_PROVIDER=openai
 ```
+
+Environment handling best practices used in this repo:
+
+- `.env` is ignored by Git and excluded from Docker build context.
+- `.env.example` is the public template for required and optional settings.
+- The Docker image does not copy `.env` or bake secrets into image layers.
+- `docker-compose.yml` maps only the variables the app expects instead of passing every local environment variable into the container.
+- For shared, hosted, or production deployments, use the platform's secret manager instead of committing or baking secrets into Docker images.
 
 ### 5. Add local PDF documents
 
@@ -320,6 +328,8 @@ http://localhost:8501
 ---
 
 ## Docker Run
+
+Create a local `.env` from `.env.example` before running Docker Compose. Docker Compose reads this file for variable interpolation, but the image itself does not contain secrets.
 
 Build and start the app:
 
