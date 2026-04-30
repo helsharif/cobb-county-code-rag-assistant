@@ -93,30 +93,9 @@ def render_about_tab() -> None:
         "when the local evidence is weak or incomplete."
     )
 
-    st.graphviz_chart(
-        """
-        digraph {
-            graph [rankdir=LR, bgcolor="transparent", pad="0.25", nodesep="0.45", ranksep="0.7"];
-            node [shape=box, style="rounded,filled", color="#94a3b8", fillcolor="#f8fafc", fontname="Arial", fontsize=11, margin="0.12,0.08"];
-            edge [color="#64748b", arrowsize=0.7, fontname="Arial", fontsize=10];
-
-            user [label="User asks a code question"];
-            app [label="Streamlit chat interface"];
-            agent [label="LangChain RAG controller"];
-            retriever [label="Local retriever"];
-            chroma [label="Chroma vector database"];
-            quality [label="Relevance + adequacy check", shape=diamond, fillcolor="#fff7ed"];
-            web [label="Fallback web search"];
-            llm [label="LLM synthesizes answer"];
-            answer [label="Concise answer with sources"];
-
-            user -> app -> agent -> retriever -> chroma -> quality;
-            quality -> llm [label="strong local evidence"];
-            quality -> web [label="weak evidence"];
-            web -> llm;
-            llm -> answer;
-        }
-        """,
+    st.image(
+        str(ROOT_DIR / "assets" / "agentic_rag_architecture.svg"),
+        caption="Agentic RAG architecture: local document retrieval first, web fallback when evidence is weak or current-code verification is needed.",
         width="stretch",
     )
 
