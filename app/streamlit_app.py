@@ -66,6 +66,10 @@ def render_chat_tab() -> None:
                     "sources": result.sources,
                     "source_mode": source_mode,
                     "route_reason": getattr(result, "route_reason", ""),
+                    "route_needs_web": getattr(result, "route_needs_web", False),
+                    "web_search_attempted": getattr(result, "web_search_attempted", False),
+                    "web_search_error": getattr(result, "web_search_error", ""),
+                    "web_query": getattr(result, "web_query", ""),
                 }
             )
         except Exception as exc:
@@ -86,6 +90,12 @@ def render_chat_tab() -> None:
                     st.caption(f"Answer source: {message['source_mode']}")
                 if message["role"] == "assistant" and message.get("route_reason"):
                     st.caption(f"Routing note: {message['route_reason']}")
+                if message["role"] == "assistant":
+                    web_status = _web_status_caption(message)
+                    if web_status:
+                        st.caption(web_status)
+                    if message.get("web_search_error"):
+                        st.caption(f"Web search error: {message['web_search_error']}")
                 if message.get("sources"):
                     with st.expander("Sources"):
                         for source in message["sources"]:
@@ -103,6 +113,17 @@ def _latest_first_exchanges(messages: list[dict]) -> list[list[dict]]:
     if current:
         exchanges.append(current)
     return list(reversed(exchanges))
+
+
+def _web_status_caption(message: dict) -> str:
+    if not (message.get("route_needs_web") or message.get("web_search_attempted") or message.get("web_query")):
+        return ""
+    requested = "requested" if message.get("route_needs_web") else "not requested"
+    attempted = "attempted" if message.get("web_search_attempted") else "not attempted"
+    query = message.get("web_query", "")
+    if query:
+        return f"Web search: {attempted}; router: {requested}; query: {query}"
+    return f"Web search: {attempted}; router: {requested}"
 
 
 def render_about_tab() -> None:

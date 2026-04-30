@@ -27,6 +27,10 @@ class AgentResult:
     used_local: bool
     used_web: bool
     route_reason: str = ""
+    route_needs_web: bool = False
+    web_search_attempted: bool = False
+    web_search_error: str = ""
+    web_query: str = ""
 
 
 @dataclass
@@ -93,21 +97,31 @@ class CobbCountyRAGAgent:
 
         use_web = force_web or route.needs_web or self._should_use_web(question, local_context, local_sources)
         web_context = ""
+        web_query = ""
+        web_search_error = ""
         if use_web:
             logger.info("Using fallback web search. Router reason: %s", route.reason)
+            web_query = self._web_query(question)
             try:
-                web_context = web_search(self._web_query(question))
+                web_context = web_search(web_query)
             except Exception as exc:
                 logger.warning("Web search failed: %s", exc)
+                web_search_error = str(exc)
                 web_context = ""
 
-        if not local_is_sufficient and not web_context and not self._is_current_date_question(question):
+        has_web_results = self._has_web_results(web_context)
+
+        if not local_is_sufficient and not has_web_results and not self._is_current_date_question(question):
             return AgentResult(
                 answer=NO_ANSWER,
                 sources=[],
                 used_local=False,
                 used_web=False,
                 route_reason=route.reason,
+                route_needs_web=route.needs_web,
+                web_search_attempted=use_web,
+                web_search_error=web_search_error,
+                web_query=web_query,
             )
 
         chain = self.prompt | self.llm
@@ -116,7 +130,7 @@ class CobbCountyRAGAgent:
                 "question": question,
                 "current_date": date.today().strftime("%A, %B %d, %Y"),
                 "local_context": local_context if local_is_sufficient else "No sufficient local evidence available.",
-                "web_context": web_context or "No web evidence used.",
+                "web_context": web_context if has_web_results else "No web evidence used.",
             }
         )
         answer = getattr(response, "content", str(response)).strip()
@@ -124,7 +138,7 @@ class CobbCountyRAGAgent:
             answer = NO_ANSWER
 
         sources = self._source_labels(local_sources) if local_is_sufficient else []
-        if web_context:
+        if has_web_results:
             sources.extend(self._web_source_labels(web_context))
         if self._is_current_date_question(question):
             sources.append("Runtime context: current system date")
@@ -133,8 +147,12 @@ class CobbCountyRAGAgent:
             answer=answer,
             sources=sources[:8],
             used_local=local_is_sufficient,
-            used_web=bool(web_context),
+            used_web=has_web_results,
             route_reason=route.reason,
+            route_needs_web=route.needs_web,
+            web_search_attempted=use_web,
+            web_search_error=web_search_error,
+            web_query=web_query,
         )
 
     @staticmethod
@@ -269,3 +287,7 @@ class CobbCountyRAGAgent:
             if line.startswith("http"):
                 labels.append(line.strip())
         return labels
+
+    @staticmethod
+    def _has_web_results(web_context: str) -> bool:
+        return bool(web_context.strip()) and "No web search results found" not in web_context
