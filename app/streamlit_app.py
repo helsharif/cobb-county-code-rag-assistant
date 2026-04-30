@@ -40,13 +40,18 @@ def render_chat_tab() -> None:
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+    force_web = st.toggle(
+        "Force web verification for the next question",
+        value=False,
+        help="Use this for current, latest, adopted-code, or effective-date questions.",
+    )
     question = st.chat_input("Ask about Cobb County building or fire code requirements")
 
     if question:
         st.session_state.messages.append({"role": "user", "content": question})
         try:
             with st.spinner("Retrieving local code documents..."):
-                result = get_agent().answer(question)
+                result = get_agent().answer(question, force_web=force_web)
             source_mode = (
                 "local documents and web search"
                 if result.used_local and result.used_web

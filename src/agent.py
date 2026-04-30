@@ -61,12 +61,12 @@ class CobbCountyRAGAgent:
             ]
         )
 
-    def answer(self, question: str) -> AgentResult:
+    def answer(self, question: str, force_web: bool = False) -> AgentResult:
         docs, local_sources = search_documents(question)
         local_context = self._format_local_context(docs, local_sources)
         local_is_sufficient = has_sufficient_retrieval(local_sources)
 
-        use_web = self._should_use_web(question, local_context, local_sources)
+        use_web = force_web or self._should_use_web(question, local_context, local_sources)
         web_context = ""
         if use_web:
             logger.info("Local retrieval was weak; using fallback web search.")
@@ -173,7 +173,9 @@ class CobbCountyRAGAgent:
     def _web_query(self, question: str) -> str:
         if self._is_current_date_question(question):
             return question
-        return f"Cobb County Georgia building fire code {question}"
+        if self._needs_current_web_verification(question):
+            return f"site:cobbcounty.gov OR site:dca.georgia.gov Cobb County Georgia current adopted building fire codes {question}"
+        return f"site:cobbcounty.gov Cobb County Georgia building fire code {question}"
 
     @staticmethod
     def _source_labels(sources: list[RetrievedSource]) -> list[str]:
