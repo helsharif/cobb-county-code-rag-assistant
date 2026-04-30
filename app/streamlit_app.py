@@ -94,7 +94,7 @@ def render_about_tab() -> None:
     )
 
     st.image(
-        str(ROOT_DIR / "assets" / "agentic_rag_architecture.svg"),
+        str(ROOT_DIR / "assets" / "Rag Flow Chart.png"),
         caption="Agentic RAG architecture: local document retrieval first, web fallback when evidence is weak or current-code verification is needed.",
         width="stretch",
     )
