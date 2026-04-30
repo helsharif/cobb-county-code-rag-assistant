@@ -8,6 +8,4 @@ langchain-chroma>=0.1.2,<0.3
 langchain-text-splitters>=0.2.2,<0.4
 chromadb>=0.5.5,<0.7
 pypdf>=4.3,<6.0
-duckduckgo-search>=6.2,<8.0
-ddgs>=9.0,<10.0
 tiktoken>=0.7,<1.0

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from langchain_community.tools import DuckDuckGoSearchResults
+import requests
 from langchain_core.tools import tool
 
+from src.config import get_settings
 from src.retriever import search_documents
 
 
@@ -31,10 +32,25 @@ def retrieve_cobb_county_documents(query: str) -> str:
 
 
 def web_search(query: str) -> str:
-    """Run a lightweight web search and return concise source-bearing results."""
+    """Run SerpAPI Google Search and return concise source-bearing results."""
 
-    search = DuckDuckGoSearchResults(output_format="list", num_results=5)
-    results = search.invoke(query)
+    settings = get_settings()
+    if not settings.serpapi_api_key:
+        return "No web search results found. SERPAPI_API_KEY is not configured."
+
+    response = requests.get(
+        "https://serpapi.com/search.json",
+        params={
+            "engine": "google",
+            "q": query,
+            "api_key": settings.serpapi_api_key,
+            "num": 5,
+        },
+        timeout=20,
+    )
+    response.raise_for_status()
+    payload = response.json()
+    results = payload.get("organic_results", [])
     if not results:
         return "No web search results found."
 

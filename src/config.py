@@ -43,6 +43,7 @@ class Settings:
     langsmith_endpoint: str | None = os.getenv("LANGSMITH_ENDPOINT")
     langsmith_api_key: str | None = os.getenv("LANGSMITH_API_KEY")
     chroma_api_key: str | None = os.getenv("CHROMA_API_KEY")
+    serpapi_api_key: str | None = os.getenv("SERPAPI_API_KEY")
 
 
 def get_settings() -> Settings:
@@ -61,6 +62,8 @@ def get_settings() -> Settings:
         os.environ.setdefault("LANGSMITH_PROJECT", settings.langsmith_project)
     if settings.langsmith_endpoint:
         os.environ.setdefault("LANGSMITH_ENDPOINT", settings.langsmith_endpoint)
+    if settings.serpapi_api_key:
+        os.environ.setdefault("SERPAPI_API_KEY", settings.serpapi_api_key)
     os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
     tiktoken_cache_dir = settings.root_dir / ".tiktoken_cache"
     tiktoken_cache_dir.mkdir(parents=True, exist_ok=True)

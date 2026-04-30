@@ -148,7 +148,7 @@ This project was validated through ingestion, retrieval, and fallback behavior c
 | PDF ingestion | Passed | Loaded Cobb County and Georgia code PDFs |
 | Vector index build | Passed | Indexed 13,844 chunks into Chroma |
 | Local retrieval smoke test | Passed | Retrieved relevant fire inspection sources |
-| Web search fallback | Passed | `ddgs` powered DuckDuckGo search works from the app environment |
+| Web search fallback | Passed | SerpAPI Google Search works from the app environment |
 | Current-date sanity check | Passed | Runtime date context answers simple date questions |
 | Current-code verification | Passed | Forces web search for currently adopted/effective code questions |
 | App syntax check | Passed | `python -m compileall app src` |
@@ -183,7 +183,7 @@ Example retrieval test:
 - Vector Database: Chroma
 - Embeddings: OpenAI by default, optional Gemini
 - LLM: OpenAI by default, optional Google Gemini
-- Web Search: DuckDuckGo via `ddgs`
+- Web Search: SerpAPI Google Search
 - PDF Loading: PyPDF / LangChain document loaders
 - Deployment: Docker, Docker Compose, Streamlit Community Cloud
 - Observability: Optional LangSmith tracing
@@ -268,6 +268,7 @@ Fill in your selected provider keys:
 ```text
 OPEN_API_KEY=<your-openai-key>
 GEMINI_API_KEY=<optional-gemini-key>
+SERPAPI_API_KEY=<your-serpapi-key>
 LLM_PROVIDER=openai
 EMBEDDING_PROVIDER=openai
 ```
