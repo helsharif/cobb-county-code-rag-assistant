@@ -1,0 +1,14 @@
+.git
+.env
+.venv/
+.tmp/
+.tiktoken_cache/
+secrets/
+notes/
+__pycache__/
+.ipynb_checkpoints/
+*.pyc
+data/raw/
+data/**/*.pdf
+vectorstore/
+streamlit*.log

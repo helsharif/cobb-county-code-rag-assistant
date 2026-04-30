@@ -1,0 +1,12 @@
+services:
+  cobb-county-rag:
+    build: .
+    container_name: cobb-county-rag
+    env_file:
+      - .env
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./data:/app/data
+      - ./vectorstore:/app/vectorstore
+    restart: unless-stopped
