@@ -65,6 +65,7 @@ def render_chat_tab() -> None:
                     "content": result.answer or NO_ANSWER,
                     "sources": result.sources,
                     "source_mode": source_mode,
+                    "route_reason": result.route_reason,
                 }
             )
         except Exception as exc:
@@ -83,6 +84,8 @@ def render_chat_tab() -> None:
                 st.markdown(message["content"])
                 if message["role"] == "assistant" and message.get("source_mode"):
                     st.caption(f"Answer source: {message['source_mode']}")
+                if message["role"] == "assistant" and message.get("route_reason"):
+                    st.caption(f"Routing note: {message['route_reason']}")
                 if message.get("sources"):
                     with st.expander("Sources"):
                         for source in message["sources"]:
@@ -106,8 +109,9 @@ def render_about_tab() -> None:
     st.subheader("What This App Does")
     st.write(
         "This app answers questions about Cobb County, Georgia building and fire code materials. "
-        "It searches local PDFs first, checks whether those results look strong enough, and only uses web search "
-        "when the local evidence is weak or incomplete."
+        "It uses a lightweight LLM router to decide whether a question may need current web verification, "
+        "then searches local PDFs, checks whether those results look strong enough, and uses web search "
+        "when the router or retrieval-quality checks say it is needed."
     )
 
     st.image(
@@ -143,8 +147,8 @@ def render_about_tab() -> None:
     with query_col:
         st.markdown("**Question answering**")
         st.write(
-            "Each question is embedded and matched against Chroma. The agent evaluates the retrieved chunks, "
-            "uses web search only when needed, then writes a short grounded response."
+            "A lightweight LLM router first classifies whether the question may need local retrieval, web search, or both. "
+            "The agent still retrieves local Chroma chunks and then evaluates whether the evidence is strong enough."
         )
         st.graphviz_chart(
             """
@@ -153,11 +157,13 @@ def render_about_tab() -> None:
                 node [shape=box, style="rounded,filled", color="#94a3b8", fillcolor="#f8fafc", fontname="Arial", fontsize=10];
                 edge [color="#64748b", arrowsize=0.65];
                 q [label="Question"];
+                router [label="LLM router"];
                 retrieve [label="Retrieve local chunks"];
                 judge [label="Judge evidence"];
                 cite [label="Answer with citations"];
                 fallback [label="Search web if needed"];
-                q -> retrieve -> judge -> cite;
+                q -> router -> retrieve -> judge -> cite;
+                router -> fallback;
                 judge -> fallback -> cite;
             }
             """,
@@ -166,15 +172,16 @@ def render_about_tab() -> None:
 
     st.subheader("Why This Is Agentic RAG")
     col1, col2, col3 = st.columns(3)
-    col1.metric("First move", "Local retrieval")
-    col2.metric("Fallback", "Web search")
-    col3.metric("Response", "Grounded + concise")
+    col1.metric("Router", "LLM signal")
+    col2.metric("Retrieval", "Local first")
+    col3.metric("Fallback", "SerpAPI web")
 
     st.table(
         [
             {"Layer": "Frontend", "What it does": "Provides a simple chat UI and displays sources.", "Tech": "Streamlit"},
+            {"Layer": "Router", "What it does": "Classifies whether the query may need local docs, web search, or both.", "Tech": "LangChain + LLM"},
             {"Layer": "Retriever", "What it does": "Finds relevant PDF chunks from the local index.", "Tech": "Chroma"},
-            {"Layer": "Agent logic", "What it does": "Decides whether local evidence is enough or web search is needed.", "Tech": "LangChain"},
+            {"Layer": "Agent logic", "What it does": "Combines router signal, retrieval scores, and evidence checks.", "Tech": "LangChain"},
             {"Layer": "Generation", "What it does": "Synthesizes a short answer from retrieved evidence only.", "Tech": "OpenAI or Gemini"},
             {"Layer": "Deployment", "What it does": "Runs locally, in Docker, or on Streamlit Community Cloud.", "Tech": "Docker + Streamlit"},
         ]

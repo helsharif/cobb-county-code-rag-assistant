@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 from dataclasses import dataclass
@@ -25,6 +26,14 @@ class AgentResult:
     sources: list[str]
     used_local: bool
     used_web: bool
+    route_reason: str = ""
+
+
+@dataclass
+class QueryRoute:
+    needs_local: bool
+    needs_web: bool
+    reason: str
 
 
 class CobbCountyRAGAgent:
@@ -61,16 +70,31 @@ class CobbCountyRAGAgent:
                 ("human", "Question:\n{question}\n\nEvidence:\n{evidence}\n\nEnough evidence?"),
             ]
         )
+        self.router_prompt = ChatPromptTemplate.from_messages(
+            [
+                (
+                    "system",
+                    "You are a lightweight routing classifier for a Cobb County building and fire code RAG app. "
+                    "Return only valid JSON with keys needs_local, needs_web, and reason. "
+                    "needs_local should usually be true for Cobb County, Georgia building, fire, permit, zoning, inspection, code, fee, or ordinance questions. "
+                    "needs_web should be true when the question asks for current, latest, recent, adopted, effective-date, dated, fee schedule, news, update, or web-published information. "
+                    "needs_web should also be true for simple current-date questions. "
+                    "Keep reason under 20 words.",
+                ),
+                ("human", "Question:\n{question}\n\nJSON route:"),
+            ]
+        )
 
     def answer(self, question: str, force_web: bool = False) -> AgentResult:
+        route = self._route_query(question)
         docs, local_sources = search_documents(question)
         local_context = self._format_local_context(docs, local_sources)
         local_is_sufficient = has_sufficient_retrieval(local_sources)
 
-        use_web = force_web or self._should_use_web(question, local_context, local_sources)
+        use_web = force_web or route.needs_web or self._should_use_web(question, local_context, local_sources)
         web_context = ""
         if use_web:
-            logger.info("Local retrieval was weak; using fallback web search.")
+            logger.info("Using fallback web search. Router reason: %s", route.reason)
             try:
                 web_context = web_search(self._web_query(question))
             except Exception as exc:
@@ -78,7 +102,13 @@ class CobbCountyRAGAgent:
                 web_context = ""
 
         if not local_is_sufficient and not web_context and not self._is_current_date_question(question):
-            return AgentResult(answer=NO_ANSWER, sources=[], used_local=False, used_web=False)
+            return AgentResult(
+                answer=NO_ANSWER,
+                sources=[],
+                used_local=False,
+                used_web=False,
+                route_reason=route.reason,
+            )
 
         chain = self.prompt | self.llm
         response = chain.invoke(
@@ -104,6 +134,7 @@ class CobbCountyRAGAgent:
             sources=sources[:8],
             used_local=local_is_sufficient,
             used_web=bool(web_context),
+            route_reason=route.reason,
         )
 
     @staticmethod
@@ -131,6 +162,33 @@ class CobbCountyRAGAgent:
         except Exception as exc:
             logger.warning("Retrieval adequacy check failed; using score threshold only: %s", exc)
             return False
+
+    def _route_query(self, question: str) -> QueryRoute:
+        fallback = QueryRoute(
+            needs_local=True,
+            needs_web=self._needs_current_web_verification(question) or self._is_current_date_question(question),
+            reason="Keyword fallback route.",
+        )
+        try:
+            response = (self.router_prompt | self.llm).invoke({"question": question})
+            content = getattr(response, "content", str(response)).strip()
+            data = self._parse_route_json(content)
+            needs_local = bool(data.get("needs_local", fallback.needs_local))
+            needs_web = bool(data.get("needs_web", fallback.needs_web)) or fallback.needs_web
+            reason = str(data.get("reason") or fallback.reason).strip()
+            return QueryRoute(needs_local=needs_local, needs_web=needs_web, reason=reason[:180])
+        except Exception as exc:
+            logger.warning("LLM router failed; using keyword fallback: %s", exc)
+            return fallback
+
+    @staticmethod
+    def _parse_route_json(content: str) -> dict:
+        if content.startswith("```"):
+            content = re.sub(r"^```(?:json)?\s*|\s*```$", "", content, flags=re.IGNORECASE | re.DOTALL).strip()
+        match = re.search(r"\{.*\}", content, flags=re.DOTALL)
+        if match:
+            content = match.group(0)
+        return json.loads(content)
 
     @staticmethod
     def _is_current_date_question(question: str) -> bool:

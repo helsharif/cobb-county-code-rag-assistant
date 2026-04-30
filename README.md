@@ -14,7 +14,7 @@ Agentic RAG web app that answers Cobb County, Georgia building and fire code que
 - Domain: Local government building, permitting, and fire code information
 - Objective: Help users query complex Cobb County code documents through a simple chat interface
 - Retrieval: Chroma vector database over local PDFs
-- Agent behavior: Local retrieval first, web search fallback when evidence is weak or current information is requested
+- Agent behavior: Lightweight LLM router, local retrieval, evidence checks, and web fallback when current information is requested
 - LLMs: OpenAI by default, optional Google Gemini
 - App: Streamlit chat UI with source display and an explanatory "About the App" tab
 - Deployment: Local Python, Docker Compose, and Streamlit Community Cloud compatible
@@ -29,6 +29,7 @@ Building and fire code information is often spread across ordinances, county PDF
 - Splits documents into searchable chunks
 - Stores embeddings in a local Chroma vector database
 - Retrieves relevant document excerpts for each user question
+- Uses a lightweight LLM router to detect whether web search may be needed
 - Checks whether local evidence is strong enough
 - Uses web search when local retrieval is weak or when current code status needs verification
 - Produces concise answers with source references
@@ -95,6 +96,7 @@ Key steps:
 - Metadata tracking: File name, source path, and page number are retained
 - Embeddings: Each chunk is converted into a dense vector representation
 - Vector indexing: Chunks and metadata are stored in Chroma
+- Query routing: A lightweight LLM classifier flags whether the query needs local retrieval, web search, or both
 - Retrieval scoring: User questions are matched against indexed chunks
 - Evidence thresholding: Weak retrieval triggers fallback web search
 
@@ -109,6 +111,11 @@ User question
     |
     v
 Streamlit chat interface
+    |
+    v
+Lightweight LLM query router
+    |
+    +--> Flags likely local retrieval, web search, or both
     |
     v
 LangChain RAG controller
@@ -130,8 +137,10 @@ LangChain RAG controller
 
 Agent behavior:
 
-- Always tries local document retrieval first
+- Uses a lightweight LLM router before retrieval
+- Still retrieves local documents for Cobb County code questions
 - Uses relevance scoring and an LLM adequacy check
+- Keeps deterministic keyword/date routing as a backup
 - Forces web verification for current, latest, adopted, or effective-date questions
 - Keeps responses to 2-3 short paragraphs
 - Shows whether the answer came from local documents, web search, or both
@@ -148,6 +157,7 @@ This project was validated through ingestion, retrieval, and fallback behavior c
 | PDF ingestion | Passed | Loaded Cobb County and Georgia code PDFs |
 | Vector index build | Passed | Indexed 13,844 chunks into Chroma |
 | Local retrieval smoke test | Passed | Retrieved relevant fire inspection sources |
+| LLM query router | Passed | Flags current, dated, and fee-schedule questions for web verification |
 | Web search fallback | Passed | SerpAPI Google Search works from the app environment |
 | Current-date sanity check | Passed | Runtime date context answers simple date questions |
 | Current-code verification | Passed | Forces web search for currently adopted/effective code questions |
