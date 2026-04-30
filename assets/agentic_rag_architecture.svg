@@ -1,129 +1,155 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1350" viewBox="0 0 1920 1350" role="img" aria-labelledby="title desc">
   <title id="title">Cobb County Agentic RAG Architecture</title>
-  <desc id="desc">A 1920 by 1080 architecture diagram showing user question, Streamlit app, LangChain agent, local document retrieval, web fallback, and grounded answer with sources.</desc>
+  <desc id="desc">A readable architecture diagram showing a user question flowing into Streamlit, a LangChain agent, local Chroma retrieval, evidence checking, optional web search, and a grounded answer with sources.</desc>
   <defs>
     <style>
       .bg { fill: #f8fafc; }
-      .panel { fill: #ffffff; stroke: #cbd5e1; stroke-width: 3; }
-      .box { fill: #ffffff; stroke: #94a3b8; stroke-width: 3; }
-      .soft-blue { fill: #eff6ff; stroke: #60a5fa; }
-      .soft-green { fill: #ecfdf5; stroke: #34d399; }
-      .soft-orange { fill: #fff7ed; stroke: #fb923c; }
-      .soft-purple { fill: #f5f3ff; stroke: #a78bfa; }
-      .soft-red { fill: #fef2f2; stroke: #f87171; }
-      .title { font: 700 54px Arial, sans-serif; fill: #0f172a; }
+      .canvas { fill: #ffffff; stroke: #d7e0ea; stroke-width: 3; }
+      .title { font: 700 56px Arial, sans-serif; fill: #0f172a; }
       .subtitle { font: 400 28px Arial, sans-serif; fill: #475569; }
-      .label { font: 700 30px Arial, sans-serif; fill: #111827; }
-      .small { font: 400 23px Arial, sans-serif; fill: #334155; }
-      .tiny { font: 400 20px Arial, sans-serif; fill: #475569; }
-      .badge { font: 700 20px Arial, sans-serif; fill: #ffffff; }
-      .arrow { stroke: #334155; stroke-width: 5; fill: none; marker-end: url(#arrowhead); }
-      .arrow-muted { stroke: #64748b; stroke-width: 4; fill: none; marker-end: url(#arrowhead-muted); stroke-dasharray: 12 10; }
+      .section { font: 700 25px Arial, sans-serif; fill: #334155; letter-spacing: .5px; }
+      .box-title { font: 700 30px Arial, sans-serif; fill: #111827; }
+      .box-text { font: 400 23px Arial, sans-serif; fill: #334155; }
+      .small { font: 400 20px Arial, sans-serif; fill: #475569; }
+      .badge-text { font: 700 20px Arial, sans-serif; fill: #ffffff; }
+      .box { stroke-width: 3; }
+      .blue { fill: #eff6ff; stroke: #60a5fa; }
+      .purple { fill: #f5f3ff; stroke: #a78bfa; }
+      .orange { fill: #fff7ed; stroke: #fb923c; }
+      .green { fill: #ecfdf5; stroke: #34d399; }
+      .red { fill: #fef2f2; stroke: #f87171; }
+      .yellow { fill: #fefce8; stroke: #eab308; }
+      .gray { fill: #f8fafc; stroke: #94a3b8; }
+      .guard { fill: #eef2f7; stroke: #cbd5e1; }
+      .arrow { stroke: #334155; stroke-width: 4; fill: none; marker-end: url(#arrowhead); }
+      .arrow-soft { stroke: #64748b; stroke-width: 4; fill: none; marker-end: url(#arrowhead-soft); }
+      .arrow-web { stroke: #dc2626; stroke-width: 4; fill: none; marker-end: url(#arrowhead-red); }
+      .note { font: 700 22px Arial, sans-serif; fill: #334155; }
     </style>
-    <marker id="arrowhead" markerWidth="16" markerHeight="12" refX="15" refY="6" orient="auto">
-      <path d="M0,0 L16,6 L0,12 Z" fill="#334155"/>
+    <marker id="arrowhead" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto">
+      <path d="M0,0 L12,5 L0,10 Z" fill="#334155"/>
     </marker>
-    <marker id="arrowhead-muted" markerWidth="16" markerHeight="12" refX="15" refY="6" orient="auto">
-      <path d="M0,0 L16,6 L0,12 Z" fill="#64748b"/>
+    <marker id="arrowhead-soft" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto">
+      <path d="M0,0 L12,5 L0,10 Z" fill="#64748b"/>
     </marker>
-    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#0f172a" flood-opacity="0.12"/>
+    <marker id="arrowhead-red" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto">
+      <path d="M0,0 L12,5 L0,10 Z" fill="#dc2626"/>
+    </marker>
+    <filter id="shadow" x="-8%" y="-8%" width="116%" height="125%">
+      <feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#0f172a" flood-opacity="0.12"/>
     </filter>
   </defs>
 
-  <rect class="bg" x="0" y="0" width="1920" height="1080"/>
+  <rect class="bg" width="1920" height="1350"/>
 
-  <text class="title" x="96" y="96">Cobb County Building &amp; Fire Code Agentic RAG</text>
-  <text class="subtitle" x="98" y="142">Local documents first. Web search only when evidence is weak or current-code verification is needed.</text>
+  <text class="title" x="96" y="92">Cobb County Building &amp; Fire Code Agentic RAG</text>
+  <text class="subtitle" x="98" y="137">A source-grounded assistant that searches local code PDFs first, then verifies with web search when needed.</text>
 
-  <rect class="panel" x="78" y="188" width="1764" height="780" rx="34" filter="url(#shadow)"/>
+  <rect class="canvas" x="80" y="184" width="1760" height="1052" rx="34" filter="url(#shadow)"/>
 
-  <g>
-    <rect class="box soft-blue" x="132" y="314" width="270" height="170" rx="24"/>
-    <rect x="158" y="340" width="52" height="32" rx="16" fill="#2563eb"/>
-    <text class="badge" x="178" y="363">1</text>
-    <text class="label" x="164" y="414">User Question</text>
-    <text class="small" x="164" y="452">Plain-language code,</text>
-    <text class="small" x="164" y="482">permit, or fire safety ask</text>
+  <text class="section" x="130" y="250">1. USER EXPERIENCE</text>
+
+  <g id="user-question">
+    <rect class="box blue" x="130" y="286" width="360" height="180" rx="24"/>
+    <circle cx="170" cy="326" r="24" fill="#2563eb"/>
+    <text class="badge-text" x="164" y="333">1</text>
+    <text class="box-title" x="206" y="330">User Question</text>
+    <text class="box-text" x="164" y="379">Ask about permits, fire</text>
+    <text class="box-text" x="164" y="411">inspections, adopted codes,</text>
+    <text class="box-text" x="164" y="443">or construction guidance.</text>
   </g>
 
-  <g>
-    <rect class="box soft-purple" x="496" y="314" width="294" height="170" rx="24"/>
-    <rect x="522" y="340" width="52" height="32" rx="16" fill="#7c3aed"/>
-    <text class="badge" x="542" y="363">2</text>
-    <text class="label" x="528" y="414">Streamlit App</text>
-    <text class="small" x="528" y="452">Chat UI, source display,</text>
-    <text class="small" x="528" y="482">and explainability tab</text>
+  <g id="streamlit-app">
+    <rect class="box purple" x="630" y="286" width="360" height="180" rx="24"/>
+    <circle cx="670" cy="326" r="24" fill="#7c3aed"/>
+    <text class="badge-text" x="664" y="333">2</text>
+    <text class="box-title" x="706" y="330">Streamlit App</text>
+    <text class="box-text" x="664" y="379">Chat interface, source</text>
+    <text class="box-text" x="664" y="411">display, and an About tab</text>
+    <text class="box-text" x="664" y="443">for reviewers.</text>
   </g>
 
-  <g>
-    <rect class="box soft-orange" x="884" y="284" width="320" height="230" rx="28"/>
-    <rect x="910" y="310" width="52" height="32" rx="16" fill="#ea580c"/>
-    <text class="badge" x="930" y="333">3</text>
-    <text class="label" x="916" y="382">LangChain Agent</text>
-    <text class="small" x="916" y="424">Controls the workflow:</text>
-    <text class="small" x="916" y="456">retrieve, judge evidence,</text>
-    <text class="small" x="916" y="488">search if needed, answer</text>
+  <g id="agent">
+    <rect class="box orange" x="1130" y="286" width="420" height="180" rx="24"/>
+    <circle cx="1170" cy="326" r="24" fill="#ea580c"/>
+    <text class="badge-text" x="1164" y="333">3</text>
+    <text class="box-title" x="1206" y="330">LangChain Agent</text>
+    <text class="box-text" x="1164" y="379">Controls the workflow:</text>
+    <text class="box-text" x="1164" y="411">retrieve, evaluate evidence,</text>
+    <text class="box-text" x="1164" y="443">search if needed, answer.</text>
   </g>
 
-  <g>
-    <rect class="box soft-green" x="1302" y="238" width="360" height="192" rx="24"/>
-    <rect x="1328" y="264" width="52" height="32" rx="16" fill="#059669"/>
-    <text class="badge" x="1348" y="287">4A</text>
-    <text class="label" x="1334" y="340">Local RAG Retrieval</text>
-    <text class="small" x="1334" y="378">Chroma searches embedded</text>
-    <text class="small" x="1334" y="408">Cobb County PDF chunks</text>
+  <path class="arrow" d="M 490 376 L 630 376"/>
+  <path class="arrow" d="M 990 376 L 1130 376"/>
+
+  <text class="section" x="130" y="566">2. RETRIEVAL AND EVIDENCE CHECK</text>
+
+  <g id="local-retrieval">
+    <rect class="box green" x="130" y="604" width="430" height="210" rx="24"/>
+    <circle cx="170" cy="644" r="24" fill="#059669"/>
+    <text class="badge-text" x="158" y="651">4A</text>
+    <text class="box-title" x="206" y="648">Local RAG Retrieval</text>
+    <text class="box-text" x="164" y="699">Chroma searches embedded</text>
+    <text class="box-text" x="164" y="731">Cobb County PDF chunks.</text>
+    <text class="box-text" x="164" y="763">Sources keep file and page</text>
+    <text class="box-text" x="164" y="795">metadata for citation.</text>
   </g>
 
-  <g>
-    <rect class="box soft-red" x="1302" y="558" width="360" height="192" rx="24"/>
-    <rect x="1328" y="584" width="52" height="32" rx="16" fill="#dc2626"/>
-    <text class="badge" x="1348" y="607">4B</text>
-    <text class="label" x="1334" y="660">Web Fallback</text>
-    <text class="small" x="1334" y="698">Used for weak evidence or</text>
-    <text class="small" x="1334" y="728">current adopted-code checks</text>
+  <g id="evidence-check">
+    <rect class="box yellow" x="745" y="604" width="430" height="210" rx="24"/>
+    <circle cx="785" cy="644" r="24" fill="#ca8a04"/>
+    <text class="badge-text" x="779" y="651">5</text>
+    <text class="box-title" x="821" y="648">Evidence Check</text>
+    <text class="box-text" x="779" y="699">Does local evidence answer</text>
+    <text class="box-text" x="779" y="731">the question clearly?</text>
+    <text class="box-text" x="779" y="763">Current or effective-date</text>
+    <text class="box-text" x="779" y="795">questions require web check.</text>
   </g>
 
-  <g>
-    <path d="M1044 592 L1182 666 L1044 740 L906 666 Z" fill="#fefce8" stroke="#eab308" stroke-width="4"/>
-    <text class="label" x="962" y="650">Evidence</text>
-    <text class="label" x="974" y="687">Check</text>
-    <text class="tiny" x="938" y="724">Relevant enough?</text>
+  <g id="web-fallback">
+    <rect class="box red" x="1350" y="604" width="430" height="210" rx="24"/>
+    <circle cx="1390" cy="644" r="24" fill="#dc2626"/>
+    <text class="badge-text" x="1378" y="651">4B</text>
+    <text class="box-title" x="1426" y="648">Web Fallback</text>
+    <text class="box-text" x="1384" y="699">Searches public web sources</text>
+    <text class="box-text" x="1384" y="731">when local documents are</text>
+    <text class="box-text" x="1384" y="763">weak, stale, or incomplete.</text>
   </g>
 
-  <g>
-    <rect class="box soft-blue" x="496" y="656" width="294" height="174" rx="24"/>
-    <rect x="522" y="682" width="52" height="32" rx="16" fill="#2563eb"/>
-    <text class="badge" x="542" y="705">5</text>
-    <text class="label" x="528" y="758">Grounded Answer</text>
-    <text class="small" x="528" y="796">2-3 paragraphs with</text>
-    <text class="small" x="528" y="826">sources or safe fallback</text>
+  <path class="arrow" d="M 1340 466 C 1340 535 345 535 345 604"/>
+  <text class="note" x="890" y="526">Retrieve local evidence first</text>
+  <path class="arrow" d="M 560 709 L 745 709"/>
+  <path class="arrow-web" d="M 1175 709 L 1350 709"/>
+  <text class="note" x="1194" y="688">weak or current?</text>
+
+  <text class="section" x="130" y="914">3. GROUNDED OUTPUT</text>
+
+  <g id="answer">
+    <rect class="box blue" x="370" y="954" width="500" height="190" rx="24"/>
+    <circle cx="410" cy="994" r="24" fill="#2563eb"/>
+    <text class="badge-text" x="404" y="1001">6</text>
+    <text class="box-title" x="446" y="998">Grounded Answer</text>
+    <text class="box-text" x="404" y="1049">A concise 2-3 paragraph answer</text>
+    <text class="box-text" x="404" y="1081">is generated from local documents,</text>
+    <text class="box-text" x="404" y="1113">web results, or both.</text>
   </g>
 
-  <g>
-    <rect class="box" x="132" y="626" width="270" height="232" rx="24"/>
-    <text class="label" x="164" y="682">Guardrails</text>
-    <circle cx="174" cy="728" r="7" fill="#2563eb"/>
-    <text class="small" x="196" y="736">No unsupported claims</text>
-    <circle cx="174" cy="774" r="7" fill="#2563eb"/>
-    <text class="small" x="196" y="782">Sources shown</text>
-    <circle cx="174" cy="820" r="7" fill="#2563eb"/>
-    <text class="small" x="196" y="828">Not legal advice</text>
+  <g id="sources">
+    <rect class="box gray" x="1050" y="954" width="500" height="190" rx="24"/>
+    <circle cx="1090" cy="994" r="24" fill="#475569"/>
+    <text class="badge-text" x="1084" y="1001">7</text>
+    <text class="box-title" x="1126" y="998">Sources and Guardrails</text>
+    <text class="box-text" x="1084" y="1049">The app displays sources and</text>
+    <text class="box-text" x="1084" y="1081">avoids unsupported legal,</text>
+    <text class="box-text" x="1084" y="1113">engineering, or permit advice.</text>
   </g>
 
-  <path class="arrow" d="M402 399 H496"/>
-  <path class="arrow" d="M790 399 H884"/>
-  <path class="arrow" d="M1204 370 C1240 350 1264 340 1302 334"/>
-  <path class="arrow" d="M1482 430 V534 C1482 546 1468 548 1448 548 H1174"/>
-  <path class="arrow" d="M906 666 H790"/>
-  <path class="arrow-muted" d="M1182 666 H1302"/>
-  <path class="arrow-muted" d="M1302 654 H1182"/>
-  <path class="arrow-muted" d="M496 742 H402"/>
+  <path class="arrow" d="M 960 814 C 960 890 620 890 620 954"/>
+  <text class="note" x="646" y="890">sufficient evidence</text>
+  <path class="arrow-soft" d="M 1565 814 C 1565 900 1300 900 1300 954"/>
+  <text class="note" x="1322" y="890">web evidence added</text>
+  <path class="arrow" d="M 870 1049 L 1050 1049"/>
 
-  <text class="tiny" x="1222" y="318">Search PDFs first</text>
-  <text class="tiny" x="1186" y="636">Weak or current?</text>
-  <text class="tiny" x="820" y="642">Synthesize</text>
-
-  <rect x="96" y="994" width="1728" height="52" rx="18" fill="#e2e8f0"/>
-  <text class="tiny" x="124" y="1028">Portfolio signal: modular RAG pipeline, local vector search, agentic fallback, source tracking, Dockerized deployment, and conservative answer policy.</text>
+  <rect class="guard" x="130" y="1190" width="1650" height="54" rx="18"/>
+  <text class="small" x="158" y="1225">Portfolio signal: modular RAG pipeline, vector search, agentic fallback, source tracking, Docker deployment, and conservative answer policy.</text>
 </svg>
