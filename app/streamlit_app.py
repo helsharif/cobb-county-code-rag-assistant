@@ -25,7 +25,6 @@ st.title("Cobb County Building & Fire Codes RAG")
 st.caption("Grounded answers from local PDFs first, with web fallback when retrieval is weak.")
 
 
-@st.cache_resource(show_spinner=False)
 def get_agent() -> CobbCountyRAGAgent:
     return CobbCountyRAGAgent()
 
@@ -39,6 +38,10 @@ def render_chat_tab() -> None:
 
     if "messages" not in st.session_state:
         st.session_state.messages = []
+
+    if st.button("Clear chat", type="secondary"):
+        st.session_state.messages = []
+        st.rerun()
 
     question = st.chat_input("Ask about Cobb County building or fire code requirements")
 
