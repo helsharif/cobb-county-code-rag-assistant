@@ -65,7 +65,7 @@ def render_chat_tab() -> None:
                     "content": result.answer or NO_ANSWER,
                     "sources": result.sources,
                     "source_mode": source_mode,
-                    "route_reason": result.route_reason,
+                    "route_reason": getattr(result, "route_reason", ""),
                 }
             )
         except Exception as exc:
