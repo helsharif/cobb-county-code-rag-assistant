@@ -15,6 +15,7 @@ RUN pip install --upgrade pip \
     && pip install -r requirements.txt
 
 COPY app ./app
+COPY assets ./assets
 COPY src ./src
 COPY README.md ./
 
