@@ -45,6 +45,7 @@ def web_search(query: str) -> str:
             "q": query,
             "api_key": settings.serpapi_api_key,
             "num": 5,
+            "safe": "active",
         },
         timeout=20,
     )

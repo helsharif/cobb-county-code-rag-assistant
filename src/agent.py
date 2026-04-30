@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date
 
@@ -149,11 +150,16 @@ class CobbCountyRAGAgent:
             "today",
             "now",
             "in effect",
+            "effective",
             "effective date",
+            "became effective",
             "take effect",
             "took effect",
             "when did",
             "adopted",
+            "fee schedule",
+            "fees calculated",
+            "permit fee",
         )
         code_terms = (
             "code",
@@ -165,16 +171,29 @@ class CobbCountyRAGAgent:
             "sprinkler",
             "construction",
             "ordinance",
+            "fee",
+            "fees",
+            "schedule",
+        )
+        has_explicit_date = bool(
+            re.search(
+                r"\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},\s+\d{4}\b",
+                normalized,
+            )
+            or re.search(r"\b20\d{2}\b", normalized)
         )
         return any(term in normalized for term in current_terms) and any(
             term in normalized for term in code_terms
-        )
+        ) or has_explicit_date and any(term in normalized for term in code_terms)
 
     def _web_query(self, question: str) -> str:
         if self._is_current_date_question(question):
             return question
         if self._needs_current_web_verification(question):
-            return f"site:cobbcounty.gov OR site:dca.georgia.gov Cobb County Georgia current adopted building fire codes {question}"
+            normalized = question.lower()
+            if "fee" in normalized or "fees" in normalized or "schedule" in normalized:
+                return f'"Cobb County" "building permit" "fee schedule" "July 1, 2024" site:cobbcounty.gov'
+            return f'"Cobb County" "current" "construction codes" site:cobbcounty.gov OR site:dca.georgia.gov'
         return f"site:cobbcounty.gov Cobb County Georgia building fire code {question}"
 
     @staticmethod
