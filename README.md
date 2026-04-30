@@ -2,6 +2,8 @@
 
 Agentic RAG web app that answers Cobb County, Georgia building and fire code questions using local PDF documents first, with web search fallback when local evidence is insufficient or current-code verification is needed.
 
+![Agentic RAG flow chart](assets/Rag%20Flow%20Chart.png)
+
 > Core focus: Retrieval-Augmented Generation, agentic tool use, document indexing, source-grounded answers, and deployable ML application engineering.
 
 ---
