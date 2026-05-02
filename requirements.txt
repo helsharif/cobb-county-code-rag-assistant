@@ -6,13 +6,13 @@ langchain-community>=0.2.11,<0.4
 langchain-openai>=0.1.20,<0.4
 langchain-chroma>=0.1.2,<0.3
 langchain-text-splitters>=0.2.2,<0.4
-chromadb>=0.5.23,<0.6.0
+chromadb>=0.6.3,<0.7.0
 pypdf>=4.3,<6.0
 tiktoken>=0.7,<1.0
 docling>=2.15,<3.0
 sentence-transformers>=3.0,<4.0
 pymupdf>=1.24,<2.0
 
-# Critical pins to resolve the rt_detr_v2 and chromadb conflicts:
-transformers==4.46.3
-tokenizers==0.20.3
+# Docling's current layout model uses rt_detr_v2, which requires Transformers 4.49+.
+transformers>=4.49,<5.0
+tokenizers>=0.21,<0.22
