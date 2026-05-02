@@ -12,6 +12,13 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).resolve().parents[1]
 load_dotenv(ROOT_DIR / ".env")
 
+ORIGINAL_COLLECTION_NAME = "cobb_code_docs_original"
+DOCLING_COLLECTION_NAME = "cobb_code_docs_docling"
+COLLECTION_OPTIONS = {
+    "Default": ORIGINAL_COLLECTION_NAME,
+    "Docling Enhanced": DOCLING_COLLECTION_NAME,
+}
+
 
 @dataclass(frozen=True)
 class Settings:
@@ -20,7 +27,7 @@ class Settings:
     root_dir: Path = ROOT_DIR
     data_dir: Path = ROOT_DIR / "data"
     vectorstore_dir: Path = ROOT_DIR / "vectorstore"
-    collection_name: str = "cobb_county_codes"
+    collection_name: str = os.getenv("CHROMA_COLLECTION_NAME", ORIGINAL_COLLECTION_NAME)
 
     llm_provider: str = os.getenv("LLM_PROVIDER", "openai").lower()
     embedding_provider: str = os.getenv("EMBEDDING_PROVIDER", "openai").lower()
@@ -37,6 +44,13 @@ class Settings:
     chunk_overlap: int = int(os.getenv("CHUNK_OVERLAP", "500"))
     retriever_k: int = int(os.getenv("RETRIEVER_K", "5"))
     min_relevance_score: float = float(os.getenv("MIN_RELEVANCE_SCORE", "0.30"))
+    docling_accelerator_device: str = os.getenv("DOCLING_ACCELERATOR_DEVICE", "auto").lower()
+    docling_num_threads: int = int(os.getenv("DOCLING_NUM_THREADS", "4"))
+    docling_do_ocr: bool = os.getenv("DOCLING_DO_OCR", "false").lower() in {"1", "true", "yes", "on"}
+    docling_batch_size: int = int(os.getenv("DOCLING_BATCH_SIZE", "1"))
+    docling_max_pages: int = int(os.getenv("DOCLING_MAX_PAGES", "250"))
+    docling_page_chunk_size: int = int(os.getenv("DOCLING_PAGE_CHUNK_SIZE", "30"))
+    docling_page_overlap: int = int(os.getenv("DOCLING_PAGE_OVERLAP", "5"))
 
     langsmith_tracing: str | None = os.getenv("LANGSMITH_TRACING")
     langsmith_project: str | None = os.getenv("LANGSMITH_PROJECT")

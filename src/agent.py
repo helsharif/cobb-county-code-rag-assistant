@@ -10,7 +10,7 @@ from datetime import date
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from src.config import get_chat_model
+from src.config import ORIGINAL_COLLECTION_NAME, get_chat_model
 from src.retriever import RetrievedSource, has_sufficient_retrieval, search_documents
 from src.tools import web_search
 
@@ -43,7 +43,8 @@ class QueryRoute:
 class CobbCountyRAGAgent:
     """Retrieve first, search the web if needed, then synthesize with citations."""
 
-    def __init__(self) -> None:
+    def __init__(self, collection_name: str = ORIGINAL_COLLECTION_NAME) -> None:
+        self.collection_name = collection_name
         self.llm = get_chat_model(temperature=0.0)
         self.prompt = ChatPromptTemplate.from_messages(
             [
@@ -91,7 +92,7 @@ class CobbCountyRAGAgent:
 
     def answer(self, question: str, force_web: bool = False) -> AgentResult:
         route = self._route_query(question)
-        docs, local_sources = search_documents(question)
+        docs, local_sources = search_documents(question, collection_name=self.collection_name)
         local_context = self._format_local_context(docs, local_sources)
         local_is_sufficient = has_sufficient_retrieval(local_sources)
 

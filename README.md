@@ -14,6 +14,7 @@ Agentic RAG web app that answers Cobb County, Georgia building and fire code que
 - Domain: Local government building, permitting, and fire code information
 - Objective: Help users query complex Cobb County code documents through a simple chat interface
 - Retrieval: Chroma vector database over local PDFs
+- Document processing: Original PyPDF pipeline plus optional Docling-enhanced parsing
 - Agent behavior: Lightweight LLM router, local retrieval, evidence checks, and web fallback when current information is requested
 - LLMs: OpenAI by default, optional Google Gemini
 - App: Streamlit chat UI with source display and an explanatory "About the App" tab
@@ -26,8 +27,9 @@ Agentic RAG web app that answers Cobb County, Georgia building and fire code que
 Building and fire code information is often spread across ordinances, county PDFs, checklists, permit forms, and web pages. This app gives users a single chat interface that:
 
 - Loads local Cobb County building and fire code PDFs
-- Splits documents into searchable chunks
-- Stores embeddings in a local Chroma vector database
+- Builds two searchable Chroma collections from the same local PDF corpus
+- Preserves the original PDF extraction pipeline as the Default mode
+- Adds a Docling Enhanced mode for layout-aware PDF parsing before chunking
 - Retrieves relevant document excerpts for each user question
 - Uses a lightweight LLM router to detect whether web search may be needed
 - Checks whether local evidence is strong enough
@@ -83,6 +85,15 @@ Current local development corpus:
 
 The `data/README.md` file explains where users should place their own PDFs before rebuilding the vector index. The generated Chroma `vectorstore/` is tracked with Git LFS so Streamlit Community Cloud can load the demo index without private raw PDFs.
 
+The app supports two Chroma collections:
+
+| Collection | UI Label | PDF Processing |
+|---|---|---|
+| `cobb_code_docs_original` | Default | Original PyPDF/LangChain page extraction |
+| `cobb_code_docs_docling` | Docling Enhanced | Docling layout-aware PDF conversion to Markdown before chunking |
+
+The Default option preserves the original app behavior. Docling Enhanced may improve retrieval quality for layout-heavy PDFs, tables, headings, sections, and regulatory documents.
+
 ---
 
 ## Feature Engineering Overview
@@ -91,9 +102,11 @@ This project does not train a traditional tabular ML model. Instead, it engineer
 
 Key steps:
 
-- PDF parsing: Each PDF is loaded page by page with source metadata
+- PDF parsing: PDFs are indexed through the original PyPDF pipeline and an optional Docling pipeline
+- Docling conversion: Layout-aware PDF content is exported to Markdown before chunking
+- Large Docling PDFs: PyMuPDF reads internal bookmarks/TOC first, then oversized sections are processed in overlapping page windows
 - Text chunking: Pages are split into overlapping chunks to preserve context
-- Metadata tracking: File name, source path, and page number are retained
+- Metadata tracking: File name, source path, parser type, chunk index, and page information when available are retained
 - Embeddings: Each chunk is converted into a dense vector representation
 - Vector indexing: Chunks and metadata are stored in Chroma
 - Query routing: A lightweight LLM classifier flags whether the query needs local retrieval, web search, or both
@@ -113,6 +126,13 @@ User question
 Streamlit chat interface
     |
     v
+Settings selector
+    |
+    +--> Default: cobb_code_docs_original
+    |
+    +--> Docling Enhanced: cobb_code_docs_docling
+    |
+    v
 Lightweight LLM query router
     |
     +--> Flags likely local retrieval, web search, or both
@@ -120,7 +140,7 @@ Lightweight LLM query router
     v
 LangChain RAG controller
     |
-    +--> Local retriever
+    +--> Local retriever using selected collection
     |       |
     |       v
     |   Chroma vector database over local PDF chunks
@@ -138,6 +158,7 @@ LangChain RAG controller
 Agent behavior:
 
 - Uses a lightweight LLM router before retrieval
+- Uses the selected Chroma collection from the Settings tab
 - Still retrieves local documents for Cobb County code questions
 - Uses relevance scoring and an LLM adequacy check
 - Keeps deterministic keyword/date routing as a backup
@@ -156,6 +177,8 @@ This project was validated through ingestion, retrieval, and fallback behavior c
 |---|---:|---|
 | PDF ingestion | Passed | Loaded Cobb County and Georgia code PDFs |
 | Vector index build | Passed | Indexed 13,844 chunks into Chroma |
+| Docling-enhanced indexing | Added | Builds `cobb_code_docs_docling` from Docling Markdown output |
+| Retrieval backend switching | Added | Settings tab switches between Default and Docling Enhanced collections |
 | Local retrieval smoke test | Passed | Retrieved relevant fire inspection sources |
 | LLM query router | Passed | Flags current, dated, and fee-schedule questions for web verification |
 | Web search fallback | Passed | SerpAPI Google Search works from the app environment |
@@ -179,6 +202,7 @@ Example retrieval test:
 - RAG is a strong fit for code and permitting documents because answers must be source-grounded.
 - Local retrieval alone is not enough for "current" or "effective date" questions because codes change.
 - Keeping file and page metadata is essential for user trust.
+- Layout-aware parsing can improve retrieval when code PDFs contain headings, tables, or multi-column formatting.
 - A conservative fallback response is safer than forcing an answer from weak evidence.
 - Streamlit is effective for quickly turning a RAG pipeline into a recruiter-friendly demo app.
 - Docker support improves reproducibility for portfolio reviewers and hiring managers.
@@ -191,10 +215,12 @@ Example retrieval test:
 - App Framework: Streamlit
 - RAG Framework: LangChain
 - Vector Database: Chroma
+- Document Processing: PyPDF/LangChain loaders and Docling
 - Embeddings: OpenAI by default, optional Gemini
 - LLM: OpenAI by default, optional Google Gemini
 - Web Search: SerpAPI Google Search
-- PDF Loading: PyPDF / LangChain document loaders
+- PDF Loading: PyPDF / LangChain document loaders, Docling
+- Large File Handling: Git LFS for prebuilt Chroma vectorstore files
 - Deployment: Docker, Docker Compose, Streamlit Community Cloud
 - Observability: Optional LangSmith tracing
 
@@ -236,6 +262,10 @@ Excluded from GitHub:
 Tracked with Git LFS:
 
 - `vectorstore/**`
+- `*.sqlite3`
+- `*.parquet`
+- `chroma*/**`
+- `vectorstore*/**`
 
 ---
 
@@ -243,9 +273,16 @@ Tracked with Git LFS:
 
 ### 1. Clone the repository
 
+Install Git LFS before cloning or before pulling the prebuilt vector database files:
+
+```bash
+git lfs install
+```
+
 ```bash
 git clone https://github.com/helsharif/cobb-county-code-rag-assistant.git
 cd cobb-county-code-rag-assistant
+git lfs pull
 ```
 
 ### 2. Create a Python 3.12 virtual environment
@@ -269,6 +306,20 @@ source .venv/bin/activate
 ```bash
 pip install -r requirements.txt
 ```
+
+For local NVIDIA GPU acceleration during Docling ingestion, install the optional CUDA PyTorch wheels after the base requirements:
+
+```bash
+pip install -r requirements-gpu.txt
+```
+
+Then set:
+
+```text
+DOCLING_ACCELERATOR_DEVICE=cuda
+```
+
+Do not use `requirements-gpu.txt` on Streamlit Community Cloud. The hosted app should use the regular CPU-compatible `requirements.txt`.
 
 ### 4. Configure environment variables
 
@@ -310,11 +361,57 @@ data/raw/cobb_municode/
 data/raw/applicable_codes/
 ```
 
-### 6. Build the vector index
+### 6. Build the vector indexes
+
+The original/default collection can still be rebuilt by itself:
 
 ```bash
 python -m src.ingestion --rebuild
 ```
+
+Build both the original and Docling-enhanced collections:
+
+```bash
+python -m src.ingestion --rebuild --pipeline both
+```
+
+Build the Docling-enhanced collection with explicit CUDA acceleration:
+
+```bash
+python -m src.ingestion --rebuild --pipeline docling --docling-device cuda
+```
+
+For large PDFs, the Docling pipeline avoids arbitrary splitting when the PDF contains internal bookmarks or a table of contents. PyMuPDF reads the document TOC first, Docling converts logical sections, and only oversized sections are split into overlapping `page_range` windows. If a PDF has no usable TOC, the fallback is an overlapping fixed-page window so boundary content is less likely to be lost:
+
+```text
+DOCLING_MAX_PAGES=250
+DOCLING_PAGE_CHUNK_SIZE=30
+DOCLING_PAGE_OVERLAP=5
+```
+
+Docling's `DoclingDocument.concatenate` API can reassemble converted ranges into one structured object. This project keeps each logical section or page window as its own Chroma source document instead, because that preserves clearer `section`, `page_start`, and `page_end` metadata for citations.
+
+Build only the Docling-enhanced collection:
+
+```bash
+python -m src.ingestion --rebuild --pipeline docling
+```
+
+Collection names:
+
+- `cobb_code_docs_original`: original/default PDF extraction behavior
+- `cobb_code_docs_docling`: Docling-enhanced layout-aware PDF parsing
+
+Docling acceleration:
+
+- `DOCLING_ACCELERATOR_DEVICE=auto`: safe default for local CPU and Streamlit Cloud
+- `DOCLING_ACCELERATOR_DEVICE=cuda`: local NVIDIA GPU acceleration when CUDA-enabled PyTorch is installed
+- `DOCLING_NUM_THREADS=4`: CPU thread count used by Docling
+- `DOCLING_DO_OCR=false`: safer default for born-digital regulatory PDFs
+- `DOCLING_BATCH_SIZE=1`: conservative batch size to reduce memory pressure on large PDFs
+- `DOCLING_MAX_PAGES=250`: PDFs above this size are processed as logical TOC/bookmark sections when possible
+- `DOCLING_PAGE_CHUNK_SIZE=30`: maximum page-window size for oversized sections or PDFs with no usable TOC
+- `DOCLING_PAGE_OVERLAP=5`: overlap between fallback page windows to protect tables and sections near boundaries
 
 ### 7. Run the Streamlit app
 
@@ -327,6 +424,8 @@ Open:
 ```text
 http://localhost:8501
 ```
+
+Use the Settings tab to switch between Default and Docling Enhanced retrieval. Switching affects new questions without requiring an app restart.
 
 ---
 
@@ -346,10 +445,10 @@ Open:
 http://localhost:8501
 ```
 
-Rebuild the vector index inside Docker:
+Rebuild both vector indexes inside Docker:
 
 ```bash
-docker compose run --rm cobb-county-rag python -m src.ingestion --rebuild
+docker compose run --rm cobb-county-rag python -m src.ingestion --rebuild --pipeline both
 ```
 
 ---
