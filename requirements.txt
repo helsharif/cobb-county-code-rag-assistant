@@ -1,22 +1,15 @@
-# --- Core UI and Utilities ---
-streamlit>=1.42,<2.0
+streamlit>=1.40,<2.0
 python-dotenv>=1.0,<2.0
-requests>=2.33,<3.0
-
-# --- LangChain Ecosystem (2026 Stable) ---
-langchain>=1.2.0,<1.5.0
-langchain-community>=1.2.0,<1.5.0
-langchain-openai>=0.3.0,<0.5.0
-langchain-google-genai>=2.1.0,<3.0.0
-langchain-chroma>=1.1.0,<2.0.0           # MUST BE 1.1.0+ for Chroma 1.x
-langchain-text-splitters>=0.4.0,<0.6.0
-
-# --- Vector Database ---
-chromadb>=1.5.8,<2.0.0
-
-# --- Document Processing ---
-pypdf>=5.2,<7.0
-tiktoken>=0.9,<1.0
-docling>=3.1.0,<4.0.0                    # Improved layout parsing
-sentence-transformers>=4.2,<6.0
-pymupdf>=1.25,<2.0
+requests>=2.32,<3.0
+langchain>=0.3.0,<0.5.0
+langchain-community>=0.3.0,<0.5.0
+langchain-openai>=0.2.0,<0.4.0
+langchain-google-genai>=2.0.0,<3.0.0
+langchain-chroma>=0.1.4,<0.3.0
+langchain-text-splitters>=0.3.0,<0.5.0
+chromadb>=0.5.23,<0.6.0
+pypdf>=5.0,<6.0
+tiktoken>=0.8,<1.0
+docling>=2.15,<3.0
+sentence-transformers>=3.1,<4.0
+pymupdf>=1.24,<2.0
