@@ -460,6 +460,10 @@ Metrics shown:
 - Context precision
 - Context recall
 
+![PyPDF vs Docling RAG evaluation metrics](assets/pypdf-vs-docling-rag-eval-metrics.png)
+
+**Figure: PyPDF vs Docling retrieval evaluation on the fixed 20-question golden dataset.** The comparison highlights how each parsing backend performs across faithfulness, answer relevance, context precision, and context recall.
+
 Evaluation is never triggered automatically on app launch. Use **Run Evaluation Metrics** or **Re-run Evaluation** from the dashboard. The app starts evaluation in a background Python process, writes a lightweight status file under `eval_status/`, and keeps the Streamlit chat UI responsive while LangSmith runs. On Windows, the app uses `pythonw.exe` when available so the evaluator does not open a blank console window. The dashboard shows the current phase, question progress, elapsed time, and automatically polls for updated status/results every few seconds while an evaluation is running. A **Refresh now** button is also available as a manual fallback.
 
 ---
