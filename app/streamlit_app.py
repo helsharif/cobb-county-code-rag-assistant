@@ -651,16 +651,6 @@ def render_about_tab() -> None:
         ]
     )
 
-    st.subheader("Guardrails")
-    st.write(
-        "The app is intentionally conservative: it keeps answers to two or three paragraphs, shows sources when available, "
-        "and says it could not find a reliable answer when the evidence is not strong enough."
-    )
-    st.info(
-        "Portfolio demonstration only. This is not legal, engineering, or permitting advice. "
-        "Always verify requirements with Cobb County and the relevant authority having jurisdiction."
-    )
-
     st.subheader("Settings and Evaluation")
     st.write(
         "The Settings & Eval tab lets users choose between two retrieval modes and inspect persisted LangSmith metrics. "
@@ -677,6 +667,16 @@ def render_about_tab() -> None:
         "For large PDFs, the Docling ingestion path reads internal bookmarks or table-of-contents entries first, "
         "then processes oversized sections with small overlapping page windows. This keeps the index closer to the "
         "document's real structure while reducing GPU memory spikes during ingestion."
+    )
+
+    st.subheader("Guardrails")
+    st.write(
+        "The app is intentionally conservative: it keeps answers to two or three paragraphs, shows sources when available, "
+        "and says it could not find a reliable answer when the evidence is not strong enough."
+    )
+    st.info(
+        "Portfolio demonstration only. This is not legal, engineering, or permitting advice. "
+        "Always verify requirements with Cobb County and the relevant authority having jurisdiction."
     )
 
     with st.expander("Example questions"):
