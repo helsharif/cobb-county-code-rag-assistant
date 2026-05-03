@@ -85,7 +85,7 @@ def save_eval_results(collection_name: str, payload: dict[str, Any]) -> Path:
 
 
 def ensure_testset() -> pd.DataFrame:
-    """Load the fixed 20-question evaluation test set from eval_testset/."""
+    """Load the fixed 100-question evaluation test set from eval_testset/."""
 
     if not TESTSET_PATH.exists():
         raise FileNotFoundError(
@@ -121,7 +121,7 @@ def ensure_langsmith_dataset(client: Client, testset: pd.DataFrame) -> tuple[str
     dataset = client.create_dataset(
         dataset_name=dataset_name,
         description=(
-            "Fixed 20-question Cobb County building and fire code RAG evaluation set "
+            "Fixed 100-question Cobb County building and fire code RAG evaluation set "
             "loaded from eval_testset/cobb_county_testset.csv."
         ),
         metadata={"testset_sha256": dataset_hash, "row_count": len(examples)},
@@ -142,7 +142,7 @@ def run_langsmith_evaluation(
     if not settings.langsmith_api_key:
         raise ValueError("LANGSMITH_API_KEY is required to create and retrieve LangSmith evaluation scores.")
 
-    _emit_progress(progress_callback, phase="loading_testset", message="Loading fixed 20-question CSV test set.")
+    _emit_progress(progress_callback, phase="loading_testset", message="Loading fixed 100-question CSV test set.")
     testset = ensure_testset()
 
     client = Client()
@@ -377,8 +377,8 @@ def _normalize_testset_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame:
     dataframe["question"] = dataframe["question"].astype(str).str.strip()
     dataframe["ground_truth"] = dataframe["ground_truth"].apply(_coerce_ground_truth)
     dataframe = dataframe[(dataframe["question"] != "") & (dataframe["ground_truth"] != "")]
-    if len(dataframe) != 20:
-        raise ValueError(f"Evaluation CSV must contain exactly 20 populated rows; found {len(dataframe)}.")
+    if len(dataframe) != 100:
+        raise ValueError(f"Evaluation CSV must contain exactly 100 populated rows; found {len(dataframe)}.")
     return dataframe[["question", "ground_truth"]].reset_index(drop=True)
 
 

@@ -367,7 +367,7 @@ def start_evaluation_process(collection_name: str) -> None:
             "phase": "launching",
             "message": "Launching background LangSmith evaluator.",
             "current": 0,
-            "total": 20,
+            "total": 100,
             "started_at_utc": now,
             "updated_at_utc": now,
         },
@@ -508,10 +508,10 @@ def _render_metric_glossary() -> None:
     with st.expander("Metric definitions", expanded=False):
         st.markdown(
             """
-            - **Faithfulness:** Whether the answer is supported by the retrieved evidence and avoids unsupported claims.
-            - **Answer relevance:** Whether the answer directly addresses the user's question.
-            - **Context precision:** Whether the retrieved chunks are mostly relevant to the question.
-            - **Context recall:** Whether the retrieved chunks contain the key information needed to support the reference answer.
+            - **Faithfulness:** Did the model invent facts? It measures if all claims in the answer are supported *solely* by the retrieved context. A high score means the model did not hallucinate.
+            - **Answer relevance:** Did the model answer the right question? It measures how relevant the generated answer is to the user's prompt, penalizing off-topic, incomplete, or redundant answers.
+            - **Context precision:** Did the retriever rank relevant items first? It measures the ratio of relevant documents within the top results, assessing the quality and ordering of retrieved information.
+            - **Context recall:** Did the retriever find all the necessary facts? It measures whether the retrieved context contains all the necessary information, compared to a "ground truth" answer.
             """
         )
 
@@ -658,7 +658,7 @@ def render_about_tab() -> None:
         "into Chroma, which can help with complex layouts, tables, headings, sections, and regulatory formatting."
     )
     st.write(
-        "Evaluation metrics are measured against an independent 20-question golden dataset in "
+        "Evaluation metrics are measured against an independent 100-question golden dataset in "
         "`eval_testset/cobb_county_testset.csv`. The ground truths were generated with Claude 4.6 Sonnet, "
         "separate from the RAG agent's runtime LLM, to reduce self-evaluation bias and test retrieval quality "
         "against dense, code-focused reference answers."

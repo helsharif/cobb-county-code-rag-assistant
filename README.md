@@ -439,7 +439,7 @@ Use the Settings & Eval tab to switch between Original and Docling retrieval. Sw
 
 ### 8. Run LangSmith evaluation
 
-The Settings & Eval tab loads saved metrics immediately when available. Evaluations always use the fixed 20-row CSV test set:
+The Settings & Eval tab loads saved metrics immediately when available. Evaluations always use the fixed 100-row CSV test set:
 
 ```text
 eval_testset/cobb_county_testset.csv
@@ -450,7 +450,7 @@ The CSV must include:
 - `question`
 - `ground_truth`
 
-When evaluation runs, the app creates or reuses a LangSmith dataset based on the CSV content hash, runs the selected RAG backend against those 20 questions, and retrieves the LangSmith experiment feedback scores for display. Cached dashboard results are stored per vector store:
+When evaluation runs, the app creates or reuses a LangSmith dataset based on the CSV content hash, runs the selected RAG backend against those 100 questions, and retrieves the LangSmith experiment feedback scores for display. Cached dashboard results are stored per vector store:
 
 ```text
 eval_results/eval_results_original.json
@@ -466,7 +466,7 @@ Metrics shown:
 
 ![PyPDF vs Docling RAG evaluation metrics](assets/pypdf-vs-docling-rag-eval-metrics.png)
 
-**Figure: PyPDF vs Docling retrieval evaluation on the fixed 20-question golden dataset.** The comparison highlights how each parsing backend performs across faithfulness, answer relevance, context precision, and context recall.
+**Figure: PyPDF vs Docling retrieval evaluation on the fixed 100-question golden dataset.** The comparison highlights how each parsing backend performs across faithfulness, answer relevance, context precision, and context recall.
 
 Evaluation is never triggered automatically on app launch. Use **Run Evaluation Metrics** or **Re-run Evaluation** from the dashboard. The app starts evaluation in a background Python process, writes a lightweight status file under `eval_status/`, and keeps the Streamlit chat UI responsive while LangSmith runs. On Windows, the app uses `pythonw.exe` when available so the evaluator does not open a blank console window. The dashboard shows the current phase, question progress, elapsed time, and automatically polls for updated status/results every few seconds while an evaluation is running. A **Refresh now** button is also available as a manual fallback.
 
@@ -480,13 +480,23 @@ This project uses a fixed golden evaluation set at:
 eval_testset/cobb_county_testset.csv
 ```
 
-The set contains 20 Cobb County Fire Permit RAG questions with generated ground-truth responses. These examples are used for every evaluation run so the Original and Docling retrieval backends are compared against the same target behavior.
+The set contains 100 Cobb County Fire Permit RAG questions with generated ground-truth responses. These examples are used for every evaluation run so the Original and Docling retrieval backends are compared against the same target behavior.
+
+Golden dataset composition:
+
+| Type | Count | Why included |
+| --- | ---: | --- |
+| Simple | ~61 | Spans all source documents and tests direct retrieval from the indexed corpus |
+| Reasoning | ~27 | Tests scenarios that require multi-step interpretation and multi-rule application |
+| Multi-context | ~12 | Tests cross-document synthesis across forms, ordinances, fee schedules, fire inspection guidance, and code references |
+
+All 15 source PDFs remain represented in the expanded set. The Cobb County Code of Ordinances is the most heavily covered single document, with about 30 of the 100 questions, which reflects its role as the most important corpus document. Each retained question includes at least one stressor for the RAG pipeline, such as numeric thresholds, code section references, tiered fee amounts, multi-step logic, or cross-document synthesis.
 
 Evaluation methodology:
 
 - Model diversity: The golden test set was generated with Claude 4.6 Sonnet, while the RAG agent uses a different LLM at runtime. This decoupling reduces self-evaluation bias, where a model can favor its own phrasing, assumptions, or linguistic patterns.
 - Information density: Ground-truth answers are intentionally dense, including details such as exact measurements, code section references, tiered fee amounts, and procedural conditions where applicable. This makes the evaluation stricter for faithfulness and context precision because vague or partially grounded answers are less likely to score well.
-- Query distribution: The 20 questions are balanced across simple lookup, reasoning, and multi-context tasks. This reflects realistic fire permit workflows, from direct code lookups to questions that require synthesis across forms, ordinances, fee schedules, fire inspection guidance, and state or county code references.
+- Query distribution: The 100 questions are balanced across simple lookup, reasoning, and multi-context tasks. This reflects realistic fire permit workflows, from direct code lookups to questions that require synthesis across forms, ordinances, fee schedules, fire inspection guidance, and state or county code references.
 - LangSmith scoring: The Settings & Eval dashboard runs the selected retrieval backend against the fixed dataset, records the experiment in LangSmith, and displays cached scores for faithfulness, answer relevance, context precision, and context recall.
 
 The evaluation is designed to test whether the app retrieves the right evidence and stays grounded. It is not a legal validation of Cobb County requirements.
