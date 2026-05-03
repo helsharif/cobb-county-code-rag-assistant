@@ -459,14 +459,14 @@ eval_results/eval_results_docling.json
 
 Metrics shown:
 
-- Faithfulness
-- Answer relevance
-- Context precision
-- Context recall
+- Faithfulness: Did the model invent facts? It measures if all claims in the answer are supported *solely* by the retrieved context. A high score means the model did not hallucinate.
+- Answer relevance: Did the model answer the right question? It measures how relevant the generated answer is to the user's prompt, penalizing off-topic, incomplete, or redundant answers.
+- Context precision: Did the retriever rank relevant items first? It measures the ratio of relevant documents within the top results, assessing the quality and ordering of retrieved information.
+- Context recall: Did the retriever find all the necessary facts? It measures whether the retrieved context contains all the necessary information, compared to a "ground truth" answer.
 
 ![PyPDF vs Docling RAG evaluation metrics](assets/pypdf-vs-docling-rag-eval-metrics.png)
 
-**Figure: PyPDF vs Docling retrieval evaluation on the fixed 100-question golden dataset.** The comparison highlights how each parsing backend performs across faithfulness, answer relevance, context precision, and context recall.
+**Figure: PyPDF vs Docling retrieval evaluation on the fixed 100-question golden dataset.** PyPDF vs. Docling RAG evaluation on the fixed 100-question golden dataset. Both parsing backends achieve strong faithfulness and answer relevance, with Docling showing modest gains across all reported metrics, including context precision and context recall.
 
 Evaluation is never triggered automatically on app launch. Use **Run Evaluation Metrics** or **Re-run Evaluation** from the dashboard. The app starts evaluation in a background Python process, writes a lightweight status file under `eval_status/`, and keeps the Streamlit chat UI responsive while LangSmith runs. On Windows, the app uses `pythonw.exe` when available so the evaluator does not open a blank console window. The dashboard shows the current phase, question progress, elapsed time, and automatically polls for updated status/results every few seconds while an evaluation is running. A **Refresh now** button is also available as a manual fallback.
 
