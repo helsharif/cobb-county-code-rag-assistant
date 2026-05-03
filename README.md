@@ -17,7 +17,7 @@ Agentic RAG web app that answers Cobb County, Georgia building and fire code que
 - Document processing: Original PyPDF pipeline plus optional Docling-enhanced parsing
 - Agent behavior: Lightweight LLM router, local retrieval, evidence checks, and web fallback when current information is requested
 - LLMs: OpenAI by default, optional Google Gemini
-- App: Streamlit chat UI with source display and an explanatory "About the App" tab
+- App: Streamlit chat UI with source display, a Settings & Eval dashboard, and an explanatory "About the App" tab
 - Deployment: Local Python, Docker Compose, and Streamlit Community Cloud compatible
 
 ---
@@ -28,8 +28,9 @@ Building and fire code information is often spread across ordinances, county PDF
 
 - Loads local Cobb County building and fire code PDFs
 - Builds two searchable Chroma collections from the same local PDF corpus
-- Preserves the original PDF extraction pipeline as the Default mode
-- Adds a Docling Enhanced mode for layout-aware PDF parsing before chunking
+- Preserves the original PDF extraction pipeline as the Original mode
+- Adds a Docling mode for layout-aware PDF parsing before chunking
+- Displays persisted LangSmith evaluation metrics for each retrieval backend
 - Retrieves relevant document excerpts for each user question
 - Uses a lightweight LLM router to detect whether web search may be needed
 - Checks whether local evidence is strong enough
@@ -89,10 +90,10 @@ The app supports two Chroma collections:
 
 | Collection | UI Label | PDF Processing |
 |---|---|---|
-| `cobb_code_docs_original` | Default | Original PyPDF/LangChain page extraction |
-| `cobb_code_docs_docling` | Docling Enhanced | Docling layout-aware PDF conversion to Markdown before chunking |
+| `cobb_code_docs_original` | Original | Original PyPDF/LangChain page extraction |
+| `cobb_code_docs_docling` | Docling | Docling layout-aware PDF conversion to Markdown before chunking |
 
-The Default option preserves the original app behavior. Docling Enhanced may improve retrieval quality for layout-heavy PDFs, tables, headings, sections, and regulatory documents.
+The Original option preserves the original app behavior. Docling may improve retrieval quality for layout-heavy PDFs, tables, headings, sections, and regulatory documents.
 
 ---
 
@@ -110,6 +111,7 @@ Key steps:
 - Embeddings: Each chunk is converted into a dense vector representation
 - Vector indexing: Chunks and metadata are stored in Chroma
 - Query routing: A lightweight LLM classifier flags whether the query needs local retrieval, web search, or both
+- Evaluation: LangSmith experiment scores persisted per vector store for faithfulness, answer relevance, context precision, and context recall
 - Retrieval scoring: User questions are matched against indexed chunks
 - Evidence thresholding: Weak retrieval triggers fallback web search
 
@@ -128,9 +130,9 @@ Streamlit chat interface
     v
 Settings selector
     |
-    +--> Default: cobb_code_docs_original
+    +--> Original: cobb_code_docs_original
     |
-    +--> Docling Enhanced: cobb_code_docs_docling
+    +--> Docling: cobb_code_docs_docling
     |
     v
 Lightweight LLM query router
@@ -158,7 +160,7 @@ LangChain RAG controller
 Agent behavior:
 
 - Uses a lightweight LLM router before retrieval
-- Uses the selected Chroma collection from the Settings tab
+- Uses the selected Chroma collection from the Settings & Eval tab
 - Still retrieves local documents for Cobb County code questions
 - Uses relevance scoring and an LLM adequacy check
 - Keeps deterministic keyword/date routing as a backup
@@ -178,7 +180,8 @@ This project was validated through ingestion, retrieval, and fallback behavior c
 | PDF ingestion | Passed | Loaded Cobb County and Georgia code PDFs |
 | Vector index build | Passed | Indexed 13,844 chunks into Chroma |
 | Docling-enhanced indexing | Added | Builds `cobb_code_docs_docling` from Docling Markdown output |
-| Retrieval backend switching | Added | Settings tab switches between Default and Docling Enhanced collections |
+| Retrieval backend switching | Added | Settings & Eval tab switches between Original and Docling collections |
+| LangSmith evaluation cache | Added | Saves per-backend metrics under `eval_results/` |
 | Local retrieval smoke test | Passed | Retrieved relevant fire inspection sources |
 | LLM query router | Passed | Flags current, dated, and fee-schedule questions for web verification |
 | Web search fallback | Passed | SerpAPI Google Search works from the app environment |
@@ -216,6 +219,7 @@ Example retrieval test:
 - RAG Framework: LangChain
 - Vector Database: Chroma
 - Document Processing: PyPDF/LangChain loaders and Docling
+- Evaluation: LangSmith experiments with GPT-4o LLM-as-judge evaluators
 - Embeddings: OpenAI by default, optional Gemini
 - LLM: OpenAI by default, optional Google Gemini
 - Web Search: SerpAPI Google Search
@@ -363,7 +367,7 @@ data/raw/applicable_codes/
 
 ### 6. Build the vector indexes
 
-The original/default collection can still be rebuilt by itself:
+The original collection can still be rebuilt by itself:
 
 ```bash
 python -m src.ingestion --rebuild
@@ -399,7 +403,7 @@ python -m src.ingestion --rebuild --pipeline docling
 
 Collection names:
 
-- `cobb_code_docs_original`: original/default PDF extraction behavior
+- `cobb_code_docs_original`: original PDF extraction behavior
 - `cobb_code_docs_docling`: Docling-enhanced layout-aware PDF parsing
 
 Docling acceleration:
@@ -422,10 +426,62 @@ streamlit run app/streamlit_app.py
 Open:
 
 ```text
-http://localhost:8501
+http://localhost:8502
 ```
 
-Use the Settings tab to switch between Default and Docling Enhanced retrieval. Switching affects new questions without requiring an app restart.
+The local Streamlit config uses port `8502` because some Windows systems reserve `8501` for system services. To override it for one run, use `streamlit run app/streamlit_app.py --server.port=8503`.
+
+Use the Settings & Eval tab to switch between Original and Docling retrieval. Switching affects new questions without requiring an app restart.
+
+### 8. Run LangSmith evaluation
+
+The Settings & Eval tab loads saved metrics immediately when available. Evaluations always use the fixed 20-row CSV test set:
+
+```text
+eval_testset/cobb_county_testset.csv
+```
+
+The CSV must include:
+
+- `question`
+- `ground_truth`
+
+When evaluation runs, the app creates or reuses a LangSmith dataset based on the CSV content hash, runs the selected RAG backend against those 20 questions, and retrieves the LangSmith experiment feedback scores for display. Cached dashboard results are stored per vector store:
+
+```text
+eval_results/eval_results_original.json
+eval_results/eval_results_docling.json
+```
+
+Metrics shown:
+
+- Faithfulness
+- Answer relevance
+- Context precision
+- Context recall
+
+Evaluation is never triggered automatically on app launch. Use **Run Evaluation Metrics** or **Re-run Evaluation** from the dashboard. The app starts evaluation in a background Python process, writes a lightweight status file under `eval_status/`, and keeps the Streamlit chat UI responsive while LangSmith runs. On Windows, the app uses `pythonw.exe` when available so the evaluator does not open a blank console window. The dashboard shows the current phase, question progress, elapsed time, and automatically polls for updated status/results every few seconds while an evaluation is running. A **Refresh now** button is also available as a manual fallback.
+
+---
+
+## Reliability & Evaluation
+
+This project uses a fixed golden evaluation set at:
+
+```text
+eval_testset/cobb_county_testset.csv
+```
+
+The set contains 20 Cobb County Fire Permit RAG questions with generated ground-truth responses. These examples are used for every evaluation run so the Original and Docling retrieval backends are compared against the same target behavior.
+
+Evaluation methodology:
+
+- Model diversity: The golden test set was generated with Claude 4.6 Sonnet, while the RAG agent uses a different LLM at runtime. This decoupling reduces self-evaluation bias, where a model can favor its own phrasing, assumptions, or linguistic patterns.
+- Information density: Ground-truth answers are intentionally dense, including details such as exact measurements, code section references, tiered fee amounts, and procedural conditions where applicable. This makes the evaluation stricter for faithfulness and context precision because vague or partially grounded answers are less likely to score well.
+- Query distribution: The 20 questions are balanced across simple lookup, reasoning, and multi-context tasks. This reflects realistic fire permit workflows, from direct code lookups to questions that require synthesis across forms, ordinances, fee schedules, fire inspection guidance, and state or county code references.
+- LangSmith scoring: The Settings & Eval dashboard runs the selected retrieval backend against the fixed dataset, records the experiment in LangSmith, and displays cached scores for faithfulness, answer relevance, context precision, and context recall.
+
+The evaluation is designed to test whether the app retrieves the right evidence and stays grounded. It is not a legal validation of Cobb County requirements.
 
 ---
 
@@ -442,7 +498,7 @@ docker compose up --build
 Open:
 
 ```text
-http://localhost:8501
+http://localhost:8502
 ```
 
 Rebuild both vector indexes inside Docker:

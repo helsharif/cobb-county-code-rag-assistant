@@ -43,9 +43,9 @@ class QueryRoute:
 class CobbCountyRAGAgent:
     """Retrieve first, search the web if needed, then synthesize with citations."""
 
-    def __init__(self, collection_name: str = ORIGINAL_COLLECTION_NAME) -> None:
+    def __init__(self, collection_name: str = ORIGINAL_COLLECTION_NAME, llm=None) -> None:
         self.collection_name = collection_name
-        self.llm = get_chat_model(temperature=0.0)
+        self.llm = llm or get_chat_model(temperature=0.0)
         self.prompt = ChatPromptTemplate.from_messages(
             [
                 (

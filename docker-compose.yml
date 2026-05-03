@@ -32,7 +32,7 @@ services:
       LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
       CHROMA_API_KEY: ${CHROMA_API_KEY:-}
     ports:
-      - "8501:8501"
+      - "${STREAMLIT_HOST_PORT:-8502}:8501"
     volumes:
       - ./data:/app/data
       - ./vectorstore:/app/vectorstore

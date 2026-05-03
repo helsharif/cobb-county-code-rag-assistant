@@ -1,0 +1,6 @@
+[server]
+fileWatcherType = "none"
+port = 8502
+
+[client]
+showErrorDetails = true

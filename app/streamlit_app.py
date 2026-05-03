@@ -3,27 +3,107 @@
 from __future__ import annotations
 
 import logging
+import json
+import os
+import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+os.environ.setdefault("CHROMA_ANONYMIZED_TELEMETRY", "False")
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.agent import CobbCountyRAGAgent, NO_ANSWER  # noqa: E402
-from src.config import COLLECTION_OPTIONS, ORIGINAL_COLLECTION_NAME  # noqa: E402
-from src.retriever import vectorstore_exists  # noqa: E402
+from src.config import DOCLING_COLLECTION_NAME, ORIGINAL_COLLECTION_NAME  # noqa: E402
 
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
 
 st.set_page_config(page_title="Cobb County Codes RAG", page_icon="CC", layout="centered")
+st.markdown(
+    """
+    <style>
+    div[data-testid="stForm"] {
+        border: 1px solid rgba(248, 113, 113, 0.45);
+        border-radius: 0.7rem;
+        padding: 1rem 1rem 0.85rem;
+        background: #ffffff;
+        box-shadow: 0 0.5rem 1.4rem rgba(17, 24, 39, 0.05);
+    }
+    div[data-testid="stTextInput"] input {
+        font-size: 1.02rem;
+        line-height: 1.45;
+        min-height: 3.25rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 st.title("Cobb County Building & Fire Codes RAG")
 st.caption("Grounded answers from local PDFs first, with web fallback when retrieval is weak.")
+
+RETRIEVAL_OPTIONS = {
+    "Original": ORIGINAL_COLLECTION_NAME,
+    "Docling": DOCLING_COLLECTION_NAME,
+}
+PAGE_OPTIONS = ["Ask", "Settings & Eval", "About the App"]
+EVAL_RESULTS_DIR = ROOT_DIR / "eval_results"
+EVAL_STATUS_DIR = ROOT_DIR / "eval_status"
+EVAL_AUTO_REFRESH_SECONDS = 8
+NO_ANSWER = "I could not find a reliable answer in the available documents or web sources."
+
+
+def get_query_param(name: str, default: str) -> str:
+    value = st.query_params.get(name, default)
+    if isinstance(value, list):
+        return str(value[0]) if value else default
+    return str(value)
+
+
+def init_persistent_state() -> None:
+    query_page = get_query_param("page", "Ask")
+    if query_page not in PAGE_OPTIONS:
+        query_page = "Ask"
+    if "selected_page" not in st.session_state:
+        st.session_state.selected_page = query_page
+
+    query_backend = get_query_param("backend", "Original")
+    if query_backend not in RETRIEVAL_OPTIONS:
+        query_backend = "Original"
+    if "collection_name" not in st.session_state:
+        st.session_state.collection_name = RETRIEVAL_OPTIONS[query_backend]
+
+
+def sync_query_state(page: str | None = None, backend_label: str | None = None) -> None:
+    if page and st.query_params.get("page") != page:
+        st.query_params["page"] = page
+    if backend_label and st.query_params.get("backend") != backend_label:
+        st.query_params["backend"] = backend_label
+
+
+def on_backend_change() -> None:
+    selected_label = st.session_state.get("backend_label", get_selected_mode_label())
+    if selected_label not in RETRIEVAL_OPTIONS:
+        selected_label = "Original"
+    st.session_state.collection_name = RETRIEVAL_OPTIONS[selected_label]
+    sync_query_state(backend_label=selected_label)
+
+
+def on_page_change() -> None:
+    selected_page = st.session_state.get("selected_page", "Ask")
+    if selected_page not in PAGE_OPTIONS:
+        selected_page = "Ask"
+    sync_query_state(page=selected_page, backend_label=get_selected_mode_label())
+
+
+init_persistent_state()
 
 
 def get_selected_collection() -> str:
@@ -32,14 +112,23 @@ def get_selected_collection() -> str:
 
 def get_selected_mode_label() -> str:
     selected = get_selected_collection()
-    for label, collection_name in COLLECTION_OPTIONS.items():
+    for label, collection_name in RETRIEVAL_OPTIONS.items():
         if collection_name == selected:
             return label
-    return "Default"
+    return "Original"
 
 
-def get_agent(collection_name: str) -> CobbCountyRAGAgent:
+def get_agent(collection_name: str):
+    from src.agent import CobbCountyRAGAgent
+
     return CobbCountyRAGAgent(collection_name=collection_name)
+
+
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_vectorstore_exists(collection_name: str) -> bool:
+    from src.retriever import vectorstore_exists
+
+    return vectorstore_exists(collection_name=collection_name)
 
 
 def render_chat_tab() -> None:
@@ -47,7 +136,7 @@ def render_chat_tab() -> None:
     mode_label = get_selected_mode_label()
     st.caption(f"Retrieval backend: {mode_label}")
 
-    if not vectorstore_exists(collection_name=collection_name):
+    if not cached_vectorstore_exists(collection_name):
         st.warning(
             f"No local vector index found for `{collection_name}`. Build it with "
             "`python -m src.ingestion --rebuild --pipeline both`, then restart or refresh the app."
@@ -56,13 +145,20 @@ def render_chat_tab() -> None:
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
+    with st.form("ask_question_form", clear_on_submit=True):
+        question = st.text_input(
+            "Ask a question",
+            placeholder="Ask about Cobb County building or fire code requirements",
+            label_visibility="collapsed",
+        )
+        submitted = st.form_submit_button("Ask", type="primary", use_container_width=True)
+
     if st.button("Clear chat", type="secondary"):
         st.session_state.messages = []
         st.rerun()
 
-    question = st.chat_input("Ask about Cobb County building or fire code requirements")
-
-    if question:
+    if submitted and question.strip():
+        question = question.strip()
         st.session_state.messages.append({"role": "user", "content": question})
         try:
             with st.spinner("Retrieving local code documents..."):
@@ -146,35 +242,329 @@ def _web_status_caption(message: dict) -> str:
     return f"Web search: {attempted}; router: {requested}"
 
 
-def render_settings_tab() -> None:
-    st.subheader("Retrieval Settings")
+def render_settings_eval_tab() -> None:
+    st.subheader("Settings & Eval")
     st.write(
-        "Choose which local Chroma collection the app should use before it decides whether web fallback is needed."
+        "Switch retrieval backends and review persisted LangSmith evaluation metrics for each vector store."
     )
     current_collection = get_selected_collection()
-    labels = list(COLLECTION_OPTIONS)
+    labels = list(RETRIEVAL_OPTIONS)
     current_label = get_selected_mode_label()
-    selected_label = st.selectbox(
-        "Retrieval backend",
+    if st.session_state.get("backend_label") != current_label:
+        st.session_state.backend_label = current_label
+    selected_label = st.radio(
+        "Vector store",
         options=labels,
         index=labels.index(current_label) if current_label in labels else 0,
+        horizontal=True,
+        key="backend_label",
+        on_change=on_backend_change,
     )
-    selected_collection = COLLECTION_OPTIONS[selected_label]
-    st.session_state.collection_name = selected_collection
+    selected_collection = RETRIEVAL_OPTIONS[selected_label]
 
-    if selected_label == "Default":
+    if selected_label == "Original":
         st.info(
-            "Default uses the original PDF text extraction pipeline. This preserves the app's original behavior."
+            "Original uses the first PDF extraction pipeline. This preserves the app's original retrieval behavior."
         )
     else:
         st.info(
-            "Docling Enhanced uses Docling for layout-aware PDF parsing before chunking and embedding. "
+            "Docling uses layout-aware PDF parsing before chunking and embedding. "
             "It may improve retrieval from layout-heavy PDFs, tables, headings, sections, and regulatory documents."
         )
 
     st.code(selected_collection, language="text")
     if selected_collection != current_collection:
         st.caption("New questions will use the selected backend. Existing chat messages are left unchanged.")
+
+    st.divider()
+    st.subheader("LangSmith Metrics")
+    st.write(
+        "Metrics are loaded from saved local result files first. Running or re-running evaluation uses the fixed "
+        "`eval_testset/cobb_county_testset.csv` file, creates or reuses a LangSmith dataset, and retrieves the "
+        "LangSmith experiment scores for this dashboard."
+    )
+
+    status = load_eval_status(selected_collection)
+    results = load_eval_results(selected_collection)
+    if results:
+        _render_eval_results(results)
+        button_label = "Re-run Evaluation"
+    else:
+        st.warning("No saved evaluation metrics found for this vector store.")
+        button_label = "Run Evaluation Metrics"
+
+    if status:
+        _render_eval_status(status)
+
+    disabled = bool(status and status.get("status") == "running")
+    if st.button(button_label, type="primary", disabled=disabled):
+        try:
+            start_evaluation_process(selected_collection)
+            st.success("LangSmith evaluation started in the background. This dashboard will update automatically.")
+            st.rerun()
+        except Exception as exc:
+            write_eval_status(
+                selected_collection,
+                {
+                    "status": "error",
+                    "phase": "launch_error",
+                    "message": "Evaluation process could not be launched.",
+                    "error": str(exc),
+                    "finished_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                },
+            )
+            st.error(f"Could not start evaluation: {exc}")
+
+
+def load_eval_results(collection_name: str) -> dict | None:
+    result_path = eval_result_path(collection_name)
+    if not result_path.exists():
+        return None
+    try:
+        with result_path.open("r", encoding="utf-8") as file:
+            return json.load(file)
+    except Exception:
+        return None
+
+
+def eval_result_path(collection_name: str) -> Path:
+    label = get_collection_display_label(collection_name).lower()
+    return EVAL_RESULTS_DIR / f"eval_results_{label}.json"
+
+
+def eval_status_path(collection_name: str) -> Path:
+    label = get_collection_display_label(collection_name).lower()
+    return EVAL_STATUS_DIR / f"eval_status_{label}.json"
+
+
+def load_eval_status(collection_name: str) -> dict | None:
+    status_path = eval_status_path(collection_name)
+    if not status_path.exists():
+        return None
+    try:
+        with status_path.open("r", encoding="utf-8") as file:
+            return json.load(file)
+    except Exception:
+        return None
+
+
+def write_eval_status(collection_name: str, payload: dict) -> None:
+    status_path = eval_status_path(collection_name)
+    status_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = status_path.with_suffix(".tmp")
+    with temp_path.open("w", encoding="utf-8") as file:
+        json.dump(payload, file, indent=2)
+    temp_path.replace(status_path)
+
+
+def start_evaluation_process(collection_name: str) -> None:
+    EVAL_STATUS_DIR.mkdir(parents=True, exist_ok=True)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    write_eval_status(
+        collection_name,
+        {
+            "status": "running",
+            "phase": "launching",
+            "message": "Launching background LangSmith evaluator.",
+            "current": 0,
+            "total": 20,
+            "started_at_utc": now,
+            "updated_at_utc": now,
+        },
+    )
+    executable = sys.executable
+    if sys.platform.startswith("win"):
+        pythonw_path = Path(sys.executable).with_name("pythonw.exe")
+        if pythonw_path.exists():
+            executable = str(pythonw_path)
+    command = [
+        executable,
+        "-m",
+        "src.evaluation_runner",
+        "--collection-name",
+        collection_name,
+    ]
+    kwargs = {
+        "cwd": str(ROOT_DIR),
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "start_new_session": True,
+    }
+    if sys.platform.startswith("win"):
+        kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+        kwargs.pop("start_new_session", None)
+    subprocess.Popen(command, **kwargs)
+
+
+def get_collection_display_label(collection_name: str) -> str:
+    for label, option_collection in RETRIEVAL_OPTIONS.items():
+        if option_collection == collection_name:
+            return label
+    return collection_name.replace("cobb_code_docs_", "")
+
+
+def _render_eval_status(status: dict) -> None:
+    status_state = status.get("status")
+    phase = str(status.get("phase") or status_state or "unknown").replace("_", " ").title()
+    message = status.get("message", "")
+    current = status.get("current")
+    total = status.get("total")
+    started_at = status.get("started_at_utc")
+    updated_at = status.get("updated_at_utc")
+
+    if status_state == "running":
+        st.info(f"Evaluation running: {phase}. {message}")
+        if isinstance(current, int) and isinstance(total, int) and total > 0:
+            progress_value = min(max(current / total, 0.0), 1.0)
+            st.progress(progress_value, text=f"{current} of {total} questions processed")
+        if started_at:
+            st.caption(f"Started: {started_at} UTC | Elapsed: {_elapsed_since(started_at)}")
+        if updated_at:
+            st.caption(f"Last status update: {updated_at} UTC")
+        if status.get("question"):
+            st.caption(f"Current question: {status['question']}")
+        st.caption(
+            f"This dashboard polls every {EVAL_AUTO_REFRESH_SECONDS} seconds while evaluation is running. "
+            "When the status changes to complete, saved LangSmith metrics will load automatically."
+        )
+        if st.button("Refresh now", type="secondary"):
+            st.rerun()
+        _enable_eval_auto_refresh(EVAL_AUTO_REFRESH_SECONDS)
+    elif status_state == "error":
+        st.error(f"Last evaluation failed: {status.get('error', 'Unknown error')}")
+    elif status_state == "complete":
+        st.success(
+            f"Last evaluation completed at {status.get('finished_at_utc', 'unknown')} UTC. "
+            "Saved metrics are displayed above when available."
+        )
+        if status.get("experiment_url"):
+            st.markdown(f"[Open LangSmith experiment]({status['experiment_url']})")
+
+
+def _enable_eval_auto_refresh(seconds: int) -> None:
+    milliseconds = max(seconds, 1) * 1000
+    components.html(
+        f"""
+        <script>
+        window.setTimeout(function() {{
+            window.parent.location.reload();
+        }}, {milliseconds});
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
+
+def _elapsed_since(timestamp: str) -> str:
+    try:
+        started = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+        if started.tzinfo is None:
+            started = started.replace(tzinfo=timezone.utc)
+        elapsed = datetime.now(timezone.utc) - started.astimezone(timezone.utc)
+        minutes, seconds = divmod(max(int(elapsed.total_seconds()), 0), 60)
+        hours, minutes = divmod(minutes, 60)
+        if hours:
+            return f"{hours}h {minutes}m"
+        if minutes:
+            return f"{minutes}m {seconds}s"
+        return f"{seconds}s"
+    except Exception:
+        return "unknown"
+
+
+def _render_eval_results(results: dict) -> None:
+    timestamp = results.get("timestamp_utc", "unknown")
+    question_count = results.get("question_count", "unknown")
+    metrics = results.get("metrics", {})
+    backend = results.get("evaluation_backend", "evaluation")
+    st.caption(f"Last {backend} run: {timestamp} UTC | Questions: {question_count}")
+    if results.get("dataset_name"):
+        st.caption(f"LangSmith dataset: {results['dataset_name']}")
+    if results.get("experiment_url"):
+        st.markdown(f"[Open LangSmith experiment]({results['experiment_url']})")
+
+    _render_metric_glossary()
+
+    columns = st.columns(4)
+    metric_specs = [
+        ("Faithfulness", "faithfulness"),
+        ("Answer Relevance", "answer_relevancy"),
+        ("Context Precision", "context_precision"),
+        ("Context Recall", "context_recall"),
+    ]
+    for column, (label, key) in zip(columns, metric_specs):
+        value = metrics.get(key)
+        with column:
+            _render_metric_card(label, value)
+
+    rows = results.get("rows", [])
+    if rows:
+        with st.expander("Evaluation details"):
+            st.dataframe(rows, use_container_width=True)
+
+
+def _render_metric_glossary() -> None:
+    with st.expander("Metric definitions", expanded=False):
+        st.markdown(
+            """
+            - **Faithfulness:** Whether the answer is supported by the retrieved evidence and avoids unsupported claims.
+            - **Answer relevance:** Whether the answer directly addresses the user's question.
+            - **Context precision:** Whether the retrieved chunks are mostly relevant to the question.
+            - **Context recall:** Whether the retrieved chunks contain the key information needed to support the reference answer.
+            """
+        )
+
+
+def _render_metric_card(label: str, value: object) -> None:
+    score = _coerce_score(value)
+    if score is None:
+        color = "#6b7280"
+        background = "#f3f4f6"
+        text = "N/A"
+        band = "No score"
+    else:
+        color, background, band = _score_style(score)
+        text = f"{score:.3f}"
+    st.markdown(
+        f"""
+        <div style="
+            border-left: 0.42rem solid {color};
+            background: {background};
+            border-radius: 0.45rem;
+            padding: 0.8rem 0.9rem;
+            min-height: 6.2rem;
+            border-top: 1px solid rgba(17, 24, 39, 0.08);
+            border-right: 1px solid rgba(17, 24, 39, 0.08);
+            border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+        ">
+            <div style="font-size: 0.86rem; color: #374151; font-weight: 650;">{label}</div>
+            <div style="font-size: 1.75rem; color: #111827; font-weight: 750; line-height: 1.25;">{text}</div>
+            <div style="font-size: 0.78rem; color: {color}; font-weight: 700;">{band}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _coerce_score(value: object) -> float | None:
+    try:
+        if value is None:
+            return None
+        score = float(value)
+        if score != score:
+            return None
+        return max(0.0, min(score, 1.0))
+    except Exception:
+        return None
+
+
+def _score_style(score: float) -> tuple[str, str, str]:
+    if score < 0.60:
+        return "#b91c1c", "#fef2f2", "Needs attention"
+    if score < 0.80:
+        return "#92400e", "#fffbeb", "Moderate"
+    return "#166534", "#f0fdf4", "Strong"
 
 
 def render_about_tab() -> None:
@@ -186,9 +576,15 @@ def render_about_tab() -> None:
         "when the router or retrieval-quality checks say it is needed."
     )
     st.write(
-        "The Settings tab lets users choose between two retrieval modes. Default uses the original PDF text "
-        "extraction pipeline. Docling Enhanced uses Docling for layout-aware parsing before content is embedded "
+        "The Settings & Eval tab lets users choose between two retrieval modes and inspect persisted LangSmith metrics. "
+        "Original uses the first PDF text extraction pipeline. Docling uses layout-aware parsing before content is embedded "
         "into Chroma, which can help with complex layouts, tables, headings, sections, and regulatory formatting."
+    )
+    st.write(
+        "Evaluation metrics are measured against an independent 20-question golden dataset in "
+        "`eval_testset/cobb_county_testset.csv`. The ground truths were generated with Claude 4.6 Sonnet, "
+        "separate from the RAG agent's runtime LLM, to reduce self-evaluation bias and test retrieval quality "
+        "against dense, code-focused reference answers."
     )
     st.write(
         "For large PDFs, the Docling ingestion path reads internal bookmarks or table-of-contents entries first, "
@@ -199,7 +595,7 @@ def render_about_tab() -> None:
     st.image(
         str(ROOT_DIR / "assets" / "Rag Flow Chart.png"),
         caption="Agentic RAG architecture: local document retrieval first, web fallback when evidence is weak or current-code verification is needed.",
-        width="stretch",
+        use_container_width=True,
     )
 
     st.subheader("Under the Hood")
@@ -225,7 +621,7 @@ def render_about_tab() -> None:
                 pdf -> load -> structure -> split -> embed -> store;
             }
             """,
-            width="stretch",
+            use_container_width=True,
         )
     with query_col:
         st.markdown("**Question answering**")
@@ -245,13 +641,13 @@ def render_about_tab() -> None:
                 judge [label="Judge evidence"];
                 cite [label="Answer with citations"];
                 fallback [label="Search web if needed"];
-                select [label="Selected backend\\nDefault or Docling"];
+                select [label="Selected backend\\nOriginal or Docling"];
                 q -> router -> select -> retrieve -> judge -> cite;
                 router -> fallback;
                 judge -> fallback -> cite;
             }
             """,
-            width="stretch",
+            use_container_width=True,
         )
 
     st.subheader("Why This Is Agentic RAG")
@@ -291,13 +687,23 @@ def render_about_tab() -> None:
         )
 
 
-chat_tab, settings_tab, about_tab = st.tabs(["Ask", "Settings", "About the App"])
+selected_page = st.radio(
+    "Navigation",
+    PAGE_OPTIONS,
+    index=PAGE_OPTIONS.index(
+        st.session_state.get("selected_page", "Ask")
+        if st.session_state.get("selected_page", "Ask") in PAGE_OPTIONS
+        else "Ask"
+    ),
+    horizontal=True,
+    label_visibility="collapsed",
+    key="selected_page",
+    on_change=on_page_change,
+)
 
-with chat_tab:
+if selected_page == "Ask":
     render_chat_tab()
-
-with settings_tab:
-    render_settings_tab()
-
-with about_tab:
+elif selected_page == "Settings & Eval":
+    render_settings_eval_tab()
+else:
     render_about_tab()

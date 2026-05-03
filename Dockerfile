@@ -16,6 +16,8 @@ RUN pip install --upgrade pip \
 
 COPY app ./app
 COPY assets ./assets
+COPY eval_results ./eval_results
+COPY eval_testset ./eval_testset
 COPY src ./src
 COPY README.md ./
 

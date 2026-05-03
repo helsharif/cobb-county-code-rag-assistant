@@ -10,13 +10,15 @@ from dotenv import load_dotenv
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+os.environ.setdefault("CHROMA_ANONYMIZED_TELEMETRY", "False")
 load_dotenv(ROOT_DIR / ".env")
 
 ORIGINAL_COLLECTION_NAME = "cobb_code_docs_original"
 DOCLING_COLLECTION_NAME = "cobb_code_docs_docling"
 COLLECTION_OPTIONS = {
-    "Default": ORIGINAL_COLLECTION_NAME,
-    "Docling Enhanced": DOCLING_COLLECTION_NAME,
+    "Original": ORIGINAL_COLLECTION_NAME,
+    "Docling": DOCLING_COLLECTION_NAME,
 }
 
 
@@ -79,6 +81,7 @@ def get_settings() -> Settings:
     if settings.serpapi_api_key:
         os.environ.setdefault("SERPAPI_API_KEY", settings.serpapi_api_key)
     os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
+    os.environ.setdefault("CHROMA_ANONYMIZED_TELEMETRY", "False")
     tiktoken_cache_dir = settings.root_dir / ".tiktoken_cache"
     tiktoken_cache_dir.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(tiktoken_cache_dir))

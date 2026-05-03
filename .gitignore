@@ -11,3 +11,5 @@ data/raw/
 data/**/*.pdf
 .streamlit/secrets.toml
 streamlit*.log
+eval_status/
+/cobb_county_testset.csv
