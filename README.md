@@ -523,23 +523,6 @@ docker compose run --rm cobb-county-rag python -m src.ingestion --rebuild --pipe
 
 ---
 
-## Screenshots and Figures
-
-The Streamlit app includes an "About the App" tab with:
-
-- High-level RAG architecture diagram
-- Document ingestion flow chart
-- Query-time retrieval and web fallback flow chart
-- Tech stack table for non-technical reviewers
-
-Suggested portfolio screenshots:
-
-- Chat answer with local document sources
-- Chat answer showing local + web fallback sources
-- About tab architecture diagram
-
----
-
 ## Reproducibility and Best Practices
 
 - Modular application code under `src/`
