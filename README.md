@@ -490,11 +490,11 @@ Golden dataset composition:
 | Reasoning | ~27 | Tests scenarios that require multi-step interpretation and multi-rule application |
 | Multi-context | ~12 | Tests cross-document synthesis across forms, ordinances, fee schedules, fire inspection guidance, and code references |
 
-All 15 source PDFs remain represented in the expanded set. The Cobb County Code of Ordinances is the most heavily covered single document, with about 30 of the 100 questions, which reflects its role as the most important corpus document. Each retained question includes at least one stressor for the RAG pipeline, such as numeric thresholds, code section references, tiered fee amounts, multi-step logic, or cross-document synthesis.
+In this golden evaluation set, the Cobb County Code of Ordinances is the most heavily covered single document, with about 30 of the 100 questions, which reflects its role as the most important corpus document. Each evaluation question includes at least one stressor for the RAG pipeline, such as numeric thresholds, code section references, tiered fee amounts, multi-step logic, or cross-document synthesis.
 
 Evaluation methodology:
 
-- Model diversity: The golden test set was generated with Claude 4.6 Sonnet, while the RAG agent uses a different LLM at runtime. This decoupling reduces self-evaluation bias, where a model can favor its own phrasing, assumptions, or linguistic patterns.
+- Model diversity: The golden test set was generated with *Claude 4.6 Sonnet*, while the RAG agent uses a different LLM at runtime. This decoupling reduces self-evaluation bias, where a model can favor its own phrasing, assumptions, or linguistic patterns.
 - Information density: Ground-truth answers are intentionally dense, including details such as exact measurements, code section references, tiered fee amounts, and procedural conditions where applicable. This makes the evaluation stricter for faithfulness and context precision because vague or partially grounded answers are less likely to score well.
 - Query distribution: The 100 questions are balanced across simple lookup, reasoning, and multi-context tasks. This reflects realistic fire permit workflows, from direct code lookups to questions that require synthesis across forms, ordinances, fee schedules, fire inspection guidance, and state or county code references.
 - LangSmith scoring: The Settings & Eval dashboard runs the selected retrieval backend against the fixed dataset, records the experiment in LangSmith, and displays cached scores for faithfulness, answer relevance, context precision, and context recall.
