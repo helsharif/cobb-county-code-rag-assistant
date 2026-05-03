@@ -575,22 +575,6 @@ def render_about_tab() -> None:
         "then searches indexed local documents, checks whether those results look strong enough, and uses web search "
         "when the router or retrieval-quality checks say it is needed."
     )
-    st.write(
-        "The Settings & Eval tab lets users choose between two retrieval modes and inspect persisted LangSmith metrics. "
-        "Original uses the first PDF text extraction pipeline. Docling uses layout-aware parsing before content is embedded "
-        "into Chroma, which can help with complex layouts, tables, headings, sections, and regulatory formatting."
-    )
-    st.write(
-        "Evaluation metrics are measured against an independent 20-question golden dataset in "
-        "`eval_testset/cobb_county_testset.csv`. The ground truths were generated with Claude 4.6 Sonnet, "
-        "separate from the RAG agent's runtime LLM, to reduce self-evaluation bias and test retrieval quality "
-        "against dense, code-focused reference answers."
-    )
-    st.write(
-        "For large PDFs, the Docling ingestion path reads internal bookmarks or table-of-contents entries first, "
-        "then processes oversized sections with small overlapping page windows. This keeps the index closer to the "
-        "document's real structure while reducing GPU memory spikes during ingestion."
-    )
 
     st.image(
         str(ROOT_DIR / "assets" / "Rag Flow Chart.png"),
@@ -675,6 +659,24 @@ def render_about_tab() -> None:
     st.info(
         "Portfolio demonstration only. This is not legal, engineering, or permitting advice. "
         "Always verify requirements with Cobb County and the relevant authority having jurisdiction."
+    )
+
+    st.subheader("Settings and Evaluation")
+    st.write(
+        "The Settings & Eval tab lets users choose between two retrieval modes and inspect persisted LangSmith metrics. "
+        "Original uses the first PDF text extraction pipeline. Docling uses layout-aware parsing before content is embedded "
+        "into Chroma, which can help with complex layouts, tables, headings, sections, and regulatory formatting."
+    )
+    st.write(
+        "Evaluation metrics are measured against an independent 20-question golden dataset in "
+        "`eval_testset/cobb_county_testset.csv`. The ground truths were generated with Claude 4.6 Sonnet, "
+        "separate from the RAG agent's runtime LLM, to reduce self-evaluation bias and test retrieval quality "
+        "against dense, code-focused reference answers."
+    )
+    st.write(
+        "For large PDFs, the Docling ingestion path reads internal bookmarks or table-of-contents entries first, "
+        "then processes oversized sections with small overlapping page windows. This keeps the index closer to the "
+        "document's real structure while reducing GPU memory spikes during ingestion."
     )
 
     with st.expander("Example questions"):
