@@ -663,12 +663,7 @@ def render_about_tab() -> None:
         "separate from the RAG agent's runtime LLM, to reduce self-evaluation bias and test retrieval quality "
         "against dense, code-focused reference answers."
     )
-    st.write(
-        "For large PDFs, the Docling ingestion path reads internal bookmarks or table-of-contents entries first, "
-        "then processes oversized sections with small overlapping page windows. This keeps the index closer to the "
-        "document's real structure while reducing GPU memory spikes during ingestion."
-    )
-
+    
     st.subheader("Guardrails")
     st.write(
         "The app is intentionally conservative: it keeps answers to two or three paragraphs, shows sources when available, "
