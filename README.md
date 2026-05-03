@@ -426,10 +426,14 @@ streamlit run app/streamlit_app.py
 Open:
 
 ```text
-http://localhost:8502
+http://localhost:8501
 ```
 
-The local Streamlit config uses port `8502` because some Windows systems reserve `8501` for system services. To override it for one run, use `streamlit run app/streamlit_app.py --server.port=8503`.
+The committed Streamlit config does not pin a port so Streamlit Community Cloud can use its expected `8501` health check. If your local Windows machine reserves `8501`, run the app on another port:
+
+```bash
+streamlit run app/streamlit_app.py --server.port=8502
+```
 
 Use the Settings & Eval tab to switch between Original and Docling retrieval. Switching affects new questions without requiring an app restart.
 
