@@ -10,17 +10,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from src.config import DOCLING_COLLECTION_NAME, ORIGINAL_COLLECTION_NAME, ROOT_DIR
+from src.config import COLLECTION_SLUGS, ROOT_DIR
 from src.evaluation import run_langsmith_evaluation
 
 
 EVAL_STATUS_DIR = ROOT_DIR / "eval_status"
-CONFIG_LABELS = {
-    ORIGINAL_COLLECTION_NAME: "original",
-    DOCLING_COLLECTION_NAME: "docling",
-}
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run LangSmith evaluation for one Chroma collection.")
     parser.add_argument("--collection-name", required=True)
@@ -87,13 +81,17 @@ def main() -> int:
 
 
 def _status_path(collection_name: str) -> Path:
-    label = CONFIG_LABELS.get(collection_name, collection_name.replace("cobb_code_docs_", ""))
-    return EVAL_STATUS_DIR / f"eval_status_{label}.json"
+    slug = _slug(collection_name)
+    return EVAL_STATUS_DIR / f"{slug}_status.json"
 
 
 def _result_path(collection_name: str) -> Path:
-    label = CONFIG_LABELS.get(collection_name, collection_name.replace("cobb_code_docs_", ""))
-    return ROOT_DIR / "eval_results" / f"eval_results_{label}.json"
+    slug = _slug(collection_name)
+    return ROOT_DIR / "eval_results" / f"{slug}_results.json"
+
+
+def _slug(collection_name: str) -> str:
+    return COLLECTION_SLUGS.get(collection_name, collection_name.replace("cobb_code_docs_", ""))
 
 
 def _write_status(path: Path, payload: dict) -> None:

@@ -5,11 +5,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
+import numpy as np
 import pandas as pd
 from langchain_openai import ChatOpenAI
 from langsmith import Client, traceable
@@ -17,7 +19,10 @@ from typing_extensions import Annotated, TypedDict
 
 from src.agent import CobbCountyRAGAgent
 from src.config import (
+    COLLECTION_SLUGS,
     DOCLING_COLLECTION_NAME,
+    OPTION_1_LABEL,
+    OPTION_2_LABEL,
     ORIGINAL_COLLECTION_NAME,
     ROOT_DIR,
     get_settings,
@@ -29,12 +34,24 @@ logger = logging.getLogger(__name__)
 
 TESTSET_PATH = ROOT_DIR / "eval_testset" / "cobb_county_testset.csv"
 EVAL_RESULTS_DIR = ROOT_DIR / "eval_results"
+EVAL_RESULTS_LOG_PATH = EVAL_RESULTS_DIR / "eval_results_log.csv"
+EVAL_RESULTS_LOG_COLUMNS = [
+    "assessment_date",
+    "setting",
+    "faithfulness",
+    "answer_relevance",
+    "context_precision",
+    "context_recall",
+    "latency_average",
+    "latency_p50",
+    "latency_p99",
+]
 EVAL_METRICS = ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]
 LANGSMITH_DATASET_PREFIX = "cobb-county-rag-eval-testset"
 
 CONFIG_LABELS = {
-    ORIGINAL_COLLECTION_NAME: "Original",
-    DOCLING_COLLECTION_NAME: "Docling",
+    ORIGINAL_COLLECTION_NAME: OPTION_1_LABEL,
+    DOCLING_COLLECTION_NAME: OPTION_2_LABEL,
 }
 
 ProgressCallback = Callable[[dict[str, Any]], None]
@@ -56,11 +73,11 @@ def eval_result_file(collection_name: str) -> EvaluationResultFile:
     """Return the cache path for one retrieval backend."""
 
     label = CONFIG_LABELS.get(collection_name, collection_name)
-    slug = label.lower().replace(" ", "_")
+    slug = COLLECTION_SLUGS.get(collection_name, collection_name.replace("cobb_code_docs_", ""))
     return EvaluationResultFile(
         collection_name=collection_name,
         label=label,
-        path=EVAL_RESULTS_DIR / f"eval_results_{slug}.json",
+        path=EVAL_RESULTS_DIR / f"{slug}_results.json",
     )
 
 
@@ -81,7 +98,36 @@ def save_eval_results(collection_name: str, payload: dict[str, Any]) -> Path:
     result_file.path.parent.mkdir(parents=True, exist_ok=True)
     with result_file.path.open("w", encoding="utf-8") as file:
         json.dump(payload, file, indent=2)
+    try:
+        append_eval_results_log(payload)
+    except OSError as exc:
+        logger.warning("Evaluation results were saved, but the persistent log could not be updated: %s", exc)
     return result_file.path
+
+
+def append_eval_results_log(payload: dict[str, Any]) -> Path:
+    """Append one evaluation summary row to the persistent metric history log."""
+
+    EVAL_RESULTS_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+    row = _eval_log_row(payload)
+    if EVAL_RESULTS_LOG_PATH.exists():
+        dataframe = pd.read_csv(EVAL_RESULTS_LOG_PATH)
+        missing_columns = [column for column in EVAL_RESULTS_LOG_COLUMNS if column not in dataframe.columns]
+        if missing_columns:
+            dataframe = dataframe.reindex(columns=EVAL_RESULTS_LOG_COLUMNS)
+    else:
+        dataframe = pd.DataFrame(columns=EVAL_RESULTS_LOG_COLUMNS)
+
+    duplicate = (
+        (dataframe.get("assessment_date") == row["assessment_date"])
+        & (dataframe.get("setting") == row["setting"])
+    )
+    if not dataframe.empty and duplicate.any():
+        return EVAL_RESULTS_LOG_PATH
+
+    updated = pd.concat([dataframe, pd.DataFrame([row])], ignore_index=True)
+    updated.to_csv(EVAL_RESULTS_LOG_PATH, index=False)
+    return EVAL_RESULTS_LOG_PATH
 
 
 def ensure_testset() -> pd.DataFrame:
@@ -156,10 +202,12 @@ def run_langsmith_evaluation(
     )
 
     answer_counter = {"count": 0}
+    execution_times: list[dict[str, Any]] = []
     started_at_utc = datetime.now(timezone.utc).isoformat(timespec="seconds")
     label = CONFIG_LABELS.get(collection_name, collection_name)
+    slug = COLLECTION_SLUGS.get(collection_name, collection_name.replace("cobb_code_docs_", ""))
 
-    @traceable(name=f"cobb_county_rag_{label.lower()}_target")
+    @traceable(name=f"cobb_county_rag_{slug}_target")
     def target(inputs: dict) -> dict:
         question = str(inputs["question"])
         answer_counter["count"] += 1
@@ -171,17 +219,24 @@ def run_langsmith_evaluation(
             total=len(testset),
             question=question,
         )
+        started_query = time.perf_counter()
         agent = CobbCountyRAGAgent(collection_name=collection_name)
         result = agent.answer(question)
         docs, sources = search_documents(question, collection_name=collection_name)
+        execution_time = round(time.perf_counter() - started_query, 3)
+        execution_times.append({"question": question, "execution_time": execution_time})
         contexts = [doc.page_content for doc in docs]
         _emit_progress(
             progress_callback,
             phase="answering_questions",
-            message=f"Completed question {answer_counter['count']} of {len(testset)}.",
+            message=(
+                f"Completed question {answer_counter['count']} of {len(testset)} "
+                f"in {execution_time:.1f} seconds."
+            ),
             current=answer_counter["count"],
             total=len(testset),
             question=question,
+            execution_time=execution_time,
         )
         return {
             "answer": result.answer,
@@ -189,10 +244,11 @@ def run_langsmith_evaluation(
             "sources": [source.source for source in sources],
             "used_local": result.used_local,
             "used_web": result.used_web,
+            "execution_time": execution_time,
         }
 
     evaluators = _build_langsmith_evaluators()
-    experiment_prefix = f"cobb-county-rag-{label.lower()}-langsmith"
+    experiment_prefix = f"cobb-county-rag-{slug}-langsmith"
     _emit_progress(
         progress_callback,
         phase="langsmith_evaluation",
@@ -227,9 +283,13 @@ def run_langsmith_evaluation(
     )
     scores_df = experiment_results.to_pandas()
     metrics = _extract_metric_means(scores_df)
+    execution_time_records = _extract_execution_time_records(scores_df, execution_times)
+    latency_metrics = _extract_latency_metrics(execution_time_records)
+    metrics.update(latency_metrics)
     payload = {
         "collection_name": collection_name,
         "config_label": label,
+        "config_slug": slug,
         "evaluation_backend": "LangSmith",
         "started_at_utc": started_at_utc,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -241,6 +301,7 @@ def run_langsmith_evaluation(
         "experiment_url": experiment_results.url,
         "question_count": len(testset),
         "metrics": metrics,
+        "execution_times": execution_time_records,
         "rows": _json_safe_records(scores_df),
     }
     save_eval_results(collection_name, payload)
@@ -401,6 +462,78 @@ def _extract_metric_means(scores_df: pd.DataFrame) -> dict[str, float | None]:
         else:
             metrics[metric] = None
     return metrics
+
+
+def _extract_latency_metrics(execution_times: list[dict[str, Any]]) -> dict[str, float | None]:
+    values = [
+        float(item["execution_time"])
+        for item in execution_times
+        if item.get("execution_time") is not None
+    ]
+    if not values:
+        return {
+            "average_latency": None,
+            "p50_latency": None,
+            "p99_latency": None,
+        }
+    array = np.array(values, dtype=float)
+    return {
+        "average_latency": round(float(np.mean(array)), 1),
+        "p50_latency": round(float(np.percentile(array, 50)), 1),
+        "p99_latency": round(float(np.percentile(array, 99)), 1),
+    }
+
+
+def _extract_execution_time_records(
+    scores_df: pd.DataFrame,
+    fallback_records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if "execution_time" not in scores_df.columns:
+        return fallback_records
+
+    records: list[dict[str, Any]] = []
+    for _, row in scores_df.iterrows():
+        execution_time = _safe_float(row.get("execution_time"))
+        if execution_time is None:
+            continue
+        question = row.get("inputs.question")
+        records.append(
+            {
+                "question": "" if question is None or pd.isna(question) else str(question),
+                "execution_time": round(execution_time, 3),
+            }
+        )
+    return records or fallback_records
+
+
+def _eval_log_row(payload: dict[str, Any]) -> dict[str, Any]:
+    metrics = payload.get("metrics") or {}
+    return {
+        "assessment_date": _format_assessment_date(str(payload.get("timestamp_utc") or "")),
+        "setting": payload.get("config_slug") or COLLECTION_SLUGS.get(payload.get("collection_name", ""), ""),
+        "faithfulness": _safe_float(metrics.get("faithfulness")),
+        "answer_relevance": _safe_float(metrics.get("answer_relevancy")),
+        "context_precision": _safe_float(metrics.get("context_precision")),
+        "context_recall": _safe_float(metrics.get("context_recall")),
+        "latency_average": _round_latency(metrics.get("average_latency")),
+        "latency_p50": _round_latency(metrics.get("p50_latency")),
+        "latency_p99": _round_latency(metrics.get("p99_latency")),
+    }
+
+
+def _format_assessment_date(timestamp: str) -> str:
+    try:
+        parsed = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = datetime.now(timezone.utc)
+    return parsed.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _round_latency(value: Any) -> float | None:
+    latency = _safe_float(value)
+    if latency is None:
+        return None
+    return round(latency, 1)
 
 
 def _safe_float(value: Any) -> float | None:

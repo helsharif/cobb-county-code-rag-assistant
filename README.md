@@ -28,8 +28,8 @@ Building and fire code information is often spread across ordinances, county PDF
 
 - Loads local Cobb County building and fire code PDFs
 - Builds two searchable Chroma collections from the same local PDF corpus
-- Preserves the original PDF extraction pipeline as the Original mode
-- Adds a Docling mode for layout-aware PDF parsing before chunking
+- Preserves the original PDF extraction pipeline as **Option 1: PyPDF + Chromadb**
+- Adds layout-aware PDF parsing as **Option 2: Docling + Chromadb**
 - Displays persisted LangSmith evaluation metrics for each retrieval backend
 - Retrieves relevant document excerpts for each user question
 - Uses a lightweight LLM router to detect whether web search may be needed
@@ -90,10 +90,10 @@ The app supports two Chroma collections:
 
 | Collection | UI Label | PDF Processing |
 |---|---|---|
-| `cobb_code_docs_original` | Original | Original PyPDF/LangChain page extraction |
-| `cobb_code_docs_docling` | Docling | Docling layout-aware PDF conversion to Markdown before chunking |
+| `cobb_code_docs_original` | Option 1: PyPDF + Chromadb | Original PyPDF/LangChain page extraction |
+| `cobb_code_docs_docling` | Option 2: Docling + Chromadb | Docling layout-aware PDF conversion to Markdown before chunking |
 
-The Original option preserves the original app behavior. Docling may improve retrieval quality for layout-heavy PDFs, tables, headings, sections, and regulatory documents.
+Option 1 preserves the original app behavior. Option 2 may improve retrieval quality for layout-heavy PDFs, tables, headings, sections, and regulatory documents.
 
 ---
 
@@ -180,7 +180,7 @@ This project was validated through ingestion, retrieval, and fallback behavior c
 | PDF ingestion | Passed | Loaded Cobb County and Georgia code PDFs |
 | Vector index build | Passed | Indexed 13,844 chunks into Chroma |
 | Docling-enhanced indexing | Added | Builds `cobb_code_docs_docling` from Docling Markdown output |
-| Retrieval backend switching | Added | Settings & Eval tab switches between Original and Docling collections |
+| Retrieval backend switching | Added | Settings & Eval tab switches between Option 1 and Option 2 collections |
 | LangSmith evaluation cache | Added | Saves per-backend metrics under `eval_results/` |
 | Local retrieval smoke test | Passed | Retrieved relevant fire inspection sources |
 | LLM query router | Passed | Flags current, dated, and fee-schedule questions for web verification |
@@ -435,7 +435,7 @@ The committed Streamlit config does not pin a port so Streamlit Community Cloud 
 streamlit run app/streamlit_app.py --server.port=8502
 ```
 
-Use the Settings & Eval tab to switch between Original and Docling retrieval. Switching affects new questions without requiring an app restart.
+Use the Settings & Eval tab to switch between **Option 1: PyPDF + Chromadb** and **Option 2: Docling + Chromadb** retrieval. Switching affects new questions without requiring an app restart.
 
 ### 8. Run LangSmith evaluation
 
@@ -453,9 +453,11 @@ The CSV must include:
 When evaluation runs, the app creates or reuses a LangSmith dataset based on the CSV content hash, runs the selected RAG backend against those 100 questions, and retrieves the LangSmith experiment feedback scores for display. Cached dashboard results are stored per vector store:
 
 ```text
-eval_results/eval_results_original.json
-eval_results/eval_results_docling.json
+eval_results/pypdf_chroma_results.json
+eval_results/docling_chroma_results.json
 ```
+
+The current naming convention is `{slug}_results.json`, where `pypdf_chroma` maps to Option 1 and `docling_chroma` maps to Option 2. Background status files follow the same slug pattern under `eval_status/` as `{slug}_status.json`.
 
 Metrics shown:
 
@@ -463,6 +465,7 @@ Metrics shown:
 - **Answer relevance:** Did the model answer the right question? It measures how relevant the generated answer is to the user's prompt, penalizing off-topic, incomplete, or redundant answers.
 - **Context precision:** Did the retriever rank relevant items first? It measures the ratio of relevant documents within the top results, assessing the quality and ordering of retrieved information.
 - **Context recall:** Did the retriever find all the necessary facts? It measures whether the retrieved context contains all the necessary information, compared to a "ground truth" answer.
+- **Latency:** Mean, P50, and P99 execution time in seconds across the 100-question evaluation set.
 
 ![PyPDF vs Docling RAG evaluation metrics](assets/pypdf-vs-docling-rag-eval-metrics.png)
 
@@ -480,7 +483,7 @@ This project uses a fixed golden evaluation set at:
 eval_testset/cobb_county_testset.csv
 ```
 
-The set contains 100 Cobb County Fire Permit RAG questions with generated ground-truth responses. These examples are used for every evaluation run so the Original and Docling retrieval backends are compared against the same target behavior.
+The set contains 100 Cobb County Fire Permit RAG questions with generated ground-truth responses. These examples are used for every evaluation run so Option 1 and Option 2 are compared against the same target behavior.
 
 Golden dataset composition:
 
@@ -497,7 +500,7 @@ Evaluation methodology:
 - Model diversity: The golden test set was generated with *Claude 4.6 Sonnet*, while the RAG agent uses a different LLM at runtime. This decoupling reduces self-evaluation bias, where a model can favor its own phrasing, assumptions, or linguistic patterns.
 - Information density: Ground-truth answers are intentionally dense, including details such as exact measurements, code section references, tiered fee amounts, and procedural conditions where applicable. This makes the evaluation stricter for faithfulness and context precision because vague or partially grounded answers are less likely to score well.
 - Query distribution: The 100 questions are balanced across simple lookup, reasoning, and multi-context tasks. This reflects realistic fire permit workflows, from direct code lookups to questions that require synthesis across forms, ordinances, fee schedules, fire inspection guidance, and state or county code references.
-- LangSmith scoring: The Settings & Eval dashboard runs the selected retrieval backend against the fixed dataset, records the experiment in LangSmith, and displays cached scores for faithfulness, answer relevance, context precision, and context recall.
+- LangSmith scoring: The Settings & Eval dashboard runs the selected retrieval backend against the fixed dataset, records the experiment in LangSmith, and displays cached scores for faithfulness, answer relevance, context precision, context recall, and latency.
 
 The evaluation is designed to test whether the app retrieves the right evidence and stays grounded. It is not a legal validation of Cobb County requirements.
 

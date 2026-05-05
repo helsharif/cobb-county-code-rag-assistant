@@ -20,13 +20,19 @@ os.environ.setdefault("CHROMA_ANONYMIZED_TELEMETRY", "False")
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
-from src.config import DOCLING_COLLECTION_NAME, ORIGINAL_COLLECTION_NAME  # noqa: E402
+from src.config import (  # noqa: E402
+    COLLECTION_OPTIONS,
+    COLLECTION_SLUGS,
+    LEGACY_COLLECTION_LABELS,
+    OPTION_1_LABEL,
+    ORIGINAL_COLLECTION_NAME,
+)
 
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 
 
-st.set_page_config(page_title="Cobb County Codes RAG", page_icon="CC", layout="centered")
+st.set_page_config(page_title="Cobb County Codes RAG", page_icon="CC", layout="wide")
 st.markdown(
     """
     <style>
@@ -49,10 +55,7 @@ st.markdown(
 st.title("Cobb County Building & Fire Codes RAG")
 st.caption("Grounded answers from local PDFs first, with web fallback when retrieval is weak.")
 
-RETRIEVAL_OPTIONS = {
-    "Original": ORIGINAL_COLLECTION_NAME,
-    "Docling": DOCLING_COLLECTION_NAME,
-}
+RETRIEVAL_OPTIONS = COLLECTION_OPTIONS
 PAGE_OPTIONS = ["Ask", "Settings & Eval", "About the App"]
 EVAL_RESULTS_DIR = ROOT_DIR / "eval_results"
 EVAL_STATUS_DIR = ROOT_DIR / "eval_status"
@@ -74,9 +77,10 @@ def init_persistent_state() -> None:
     if "selected_page" not in st.session_state:
         st.session_state.selected_page = query_page
 
-    query_backend = get_query_param("backend", "Original")
+    query_backend = get_query_param("backend", OPTION_1_LABEL)
+    query_backend = LEGACY_COLLECTION_LABELS.get(query_backend, query_backend)
     if query_backend not in RETRIEVAL_OPTIONS:
-        query_backend = "Original"
+        query_backend = OPTION_1_LABEL
     if "collection_name" not in st.session_state:
         st.session_state.collection_name = RETRIEVAL_OPTIONS[query_backend]
 
@@ -90,8 +94,9 @@ def sync_query_state(page: str | None = None, backend_label: str | None = None) 
 
 def on_backend_change() -> None:
     selected_label = st.session_state.get("backend_label", get_selected_mode_label())
+    selected_label = LEGACY_COLLECTION_LABELS.get(selected_label, selected_label)
     if selected_label not in RETRIEVAL_OPTIONS:
-        selected_label = "Original"
+        selected_label = OPTION_1_LABEL
     st.session_state.collection_name = RETRIEVAL_OPTIONS[selected_label]
     sync_query_state(backend_label=selected_label)
 
@@ -115,7 +120,7 @@ def get_selected_mode_label() -> str:
     for label, collection_name in RETRIEVAL_OPTIONS.items():
         if collection_name == selected:
             return label
-    return "Original"
+    return OPTION_1_LABEL
 
 
 def get_agent(collection_name: str):
@@ -262,13 +267,14 @@ def render_settings_eval_tab() -> None:
     )
     selected_collection = RETRIEVAL_OPTIONS[selected_label]
 
-    if selected_label == "Original":
+    if selected_label == OPTION_1_LABEL:
         st.info(
-            "Original uses the first PDF extraction pipeline. This preserves the app's original retrieval behavior."
+            "Option 1: PyPDF + Chromadb uses the first PDF extraction pipeline. "
+            "This preserves the app's original retrieval behavior."
         )
     else:
         st.info(
-            "Docling uses layout-aware PDF parsing before chunking and embedding. "
+            "Option 2: Docling + Chromadb uses layout-aware PDF parsing before chunking and embedding. "
             "It may improve retrieval from layout-heavy PDFs, tables, headings, sections, and regulatory documents."
         )
 
@@ -328,13 +334,13 @@ def load_eval_results(collection_name: str) -> dict | None:
 
 
 def eval_result_path(collection_name: str) -> Path:
-    label = get_collection_display_label(collection_name).lower()
-    return EVAL_RESULTS_DIR / f"eval_results_{label}.json"
+    slug = get_collection_slug(collection_name)
+    return EVAL_RESULTS_DIR / f"{slug}_results.json"
 
 
 def eval_status_path(collection_name: str) -> Path:
-    label = get_collection_display_label(collection_name).lower()
-    return EVAL_STATUS_DIR / f"eval_status_{label}.json"
+    slug = get_collection_slug(collection_name)
+    return EVAL_STATUS_DIR / f"{slug}_status.json"
 
 
 def load_eval_status(collection_name: str) -> dict | None:
@@ -401,6 +407,10 @@ def get_collection_display_label(collection_name: str) -> str:
         if option_collection == collection_name:
             return label
     return collection_name.replace("cobb_code_docs_", "")
+
+
+def get_collection_slug(collection_name: str) -> str:
+    return COLLECTION_SLUGS.get(collection_name, collection_name.replace("cobb_code_docs_", ""))
 
 
 def _render_eval_status(status: dict) -> None:
@@ -485,8 +495,9 @@ def _render_eval_results(results: dict) -> None:
         st.markdown(f"[Open LangSmith experiment]({results['experiment_url']})")
 
     _render_metric_glossary()
+    _persist_displayed_eval_log(results)
 
-    columns = st.columns(4)
+    columns = st.columns(5)
     metric_specs = [
         ("Faithfulness", "faithfulness"),
         ("Answer Relevance", "answer_relevancy"),
@@ -497,11 +508,22 @@ def _render_eval_results(results: dict) -> None:
         value = metrics.get(key)
         with column:
             _render_metric_card(label, value)
+    with columns[-1]:
+        _render_latency_card(metrics)
 
     rows = results.get("rows", [])
     if rows:
         with st.expander("Evaluation details"):
             st.dataframe(rows, use_container_width=True)
+
+
+def _persist_displayed_eval_log(results: dict) -> None:
+    try:
+        from src.evaluation import append_eval_results_log
+
+        append_eval_results_log(results)
+    except Exception as exc:
+        st.caption(f"Evaluation log could not be updated: {exc}")
 
 
 def _render_metric_glossary() -> None:
@@ -512,6 +534,7 @@ def _render_metric_glossary() -> None:
             - **Answer relevance:** Did the model answer the right question? It measures how relevant the generated answer is to the user's prompt, penalizing off-topic, incomplete, or redundant answers.
             - **Context precision:** Did the retriever rank relevant items first? It measures the ratio of relevant documents within the top results, assessing the quality and ordering of retrieved information.
             - **Context recall:** Did the retriever find all the necessary facts? It measures whether the retrieved context contains all the necessary information, compared to a "ground truth" answer.
+            - **Latency:** How long did the selected RAG configuration take per question? The card reports average, median (P50), and 99th percentile (P99) execution time in seconds.
             """
         )
 
@@ -547,6 +570,40 @@ def _render_metric_card(label: str, value: object) -> None:
     )
 
 
+def _render_latency_card(metrics: dict) -> None:
+    avg = _coerce_latency(metrics.get("average_latency"))
+    p50 = _coerce_latency(metrics.get("p50_latency"))
+    p99 = _coerce_latency(metrics.get("p99_latency"))
+    if avg is None or p50 is None or p99 is None:
+        color = "#6b7280"
+        background = "#f3f4f6"
+        text = "N/A"
+        band = "No score"
+    else:
+        color, background, band = _latency_style(p99)
+        text = f"{avg:.1f} | {p50:.1f} | {p99:.1f}"
+    st.markdown(
+        f"""
+        <div style="
+            border-left: 0.42rem solid {color};
+            background: {background};
+            border-radius: 0.45rem;
+            padding: 0.8rem 0.9rem;
+            min-height: 6.2rem;
+            border-top: 1px solid rgba(17, 24, 39, 0.08);
+            border-right: 1px solid rgba(17, 24, 39, 0.08);
+            border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+        ">
+            <div style="font-size: 0.86rem; color: #374151; font-weight: 650;">Latency (secs)</div>
+            <div style="font-size: 1.35rem; color: #111827; font-weight: 750; line-height: 1.35; white-space: nowrap;">{text}</div>
+            <div style="font-size: 0.78rem; color: #374151; font-weight: 650;">Avg P50 P99</div>
+            <div style="font-size: 0.78rem; color: {color}; font-weight: 700;">{band}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def _coerce_score(value: object) -> float | None:
     try:
         if value is None:
@@ -559,10 +616,30 @@ def _coerce_score(value: object) -> float | None:
         return None
 
 
+def _coerce_latency(value: object) -> float | None:
+    try:
+        if value is None:
+            return None
+        latency = float(value)
+        if latency != latency:
+            return None
+        return max(0.0, latency)
+    except Exception:
+        return None
+
+
 def _score_style(score: float) -> tuple[str, str, str]:
     if score < 0.60:
         return "#b91c1c", "#fef2f2", "Needs attention"
     if score < 0.80:
+        return "#92400e", "#fffbeb", "Moderate"
+    return "#166534", "#f0fdf4", "Strong"
+
+
+def _latency_style(p99_latency: float) -> tuple[str, str, str]:
+    if p99_latency > 15.0:
+        return "#b91c1c", "#fef2f2", "Needs attention"
+    if p99_latency > 8.0:
         return "#92400e", "#fffbeb", "Moderate"
     return "#166534", "#f0fdf4", "Strong"
 
@@ -587,8 +664,8 @@ def render_about_tab() -> None:
     with ingest_col:
         st.markdown("**Index build**")
         st.write(
-            "PDFs under `data/` are indexed into two optional Chroma collections: the original PyPDF-based "
-            "collection and a Docling-enhanced collection that first exports layout-aware Markdown."
+            "PDFs under `data/` are indexed into two optional Chroma collections: Option 1 uses the PyPDF-based "
+            "pipeline, and Option 2 uses Docling-enhanced parsing that first exports layout-aware Markdown."
         )
         st.graphviz_chart(
             """
@@ -601,7 +678,7 @@ def render_about_tab() -> None:
                 structure [label="Docling mode:\\nTOC/bookmark ranges\\nwith overlap fallback"];
                 split [label="Chunk text\\nwith overlap"];
                 embed [label="Create embeddings"];
-                store [label="Persist in Chroma\\noriginal or Docling collection"];
+                store [label="Persist in Chroma\\nOption 1 or Option 2 collection"];
                 pdf -> load -> structure -> split -> embed -> store;
             }
             """,
@@ -625,7 +702,7 @@ def render_about_tab() -> None:
                 judge [label="Judge evidence"];
                 cite [label="Answer with citations"];
                 fallback [label="Search web if needed"];
-                select [label="Selected backend\\nOriginal or Docling"];
+                select [label="Selected backend\\nOption 1 or Option 2"];
                 q -> router -> select -> retrieve -> judge -> cite;
                 router -> fallback;
                 judge -> fallback -> cite;
@@ -644,7 +721,7 @@ def render_about_tab() -> None:
         [
             {"Layer": "Frontend", "What it does": "Provides a simple chat UI and displays sources.", "Tech": "Streamlit"},
             {"Layer": "Router", "What it does": "Classifies whether the query may need local docs, web search, or both.", "Tech": "LangChain + LLM"},
-            {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Chroma + PyPDF or Docling"},
+            {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Option 1: PyPDF + Chromadb or Option 2: Docling + Chromadb"},
             {"Layer": "Agent logic", "What it does": "Combines router signal, retrieval scores, and evidence checks.", "Tech": "LangChain"},
             {"Layer": "Generation", "What it does": "Synthesizes a short answer from retrieved evidence only.", "Tech": "OpenAI or Gemini"},
             {"Layer": "Deployment", "What it does": "Runs locally, in Docker, or on Streamlit Community Cloud.", "Tech": "Docker + Streamlit"},
@@ -654,8 +731,9 @@ def render_about_tab() -> None:
     st.subheader("Settings and Evaluation")
     st.write(
         "The Settings & Eval tab lets users choose between two retrieval modes and inspect persisted LangSmith metrics. "
-        "Original uses the first PDF text extraction pipeline. Docling uses layout-aware parsing before content is embedded "
-        "into Chroma, which can help with complex layouts, tables, headings, sections, and regulatory formatting."
+        "Option 1: PyPDF + Chromadb uses the first PDF text extraction pipeline. Option 2: Docling + Chromadb uses "
+        "layout-aware parsing before content is embedded into Chroma, which can help with complex layouts, tables, "
+        "headings, sections, and regulatory formatting."
     )
     st.write(
         "Evaluation metrics are measured against an independent 100-question golden dataset in "

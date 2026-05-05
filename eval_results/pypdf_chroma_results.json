@@ -1,6 +1,6 @@
 {
   "collection_name": "cobb_code_docs_original",
-  "config_label": "Original",
+  "config_label": "Option 1: PyPDF + Chromadb",
   "evaluation_backend": "LangSmith",
   "started_at_utc": "2026-05-03T12:07:19+00:00",
   "timestamp_utc": "2026-05-03T12:22:05+00:00",
@@ -15,7 +15,10 @@
     "faithfulness": 0.8686868686868687,
     "answer_relevancy": 0.9787234042553191,
     "context_precision": 0.7555555555555555,
-    "context_recall": 0.65
+    "context_recall": 0.65,
+    "average_latency": 7.1,
+    "p50_latency": 6.4,
+    "p99_latency": 16.0
   },
   "rows": [
     {
@@ -3105,6 +3108,409 @@
       "id": "019dedc7-522f-7fa2-8cec-6ad8e370962e",
       "feedback.wrapper": null,
       "outputs.output": null
+    }
+  ],
+  "config_slug": "pypdf_chroma",
+  "execution_times": [
+    {
+      "question": "A developer wants to conduct blasting at 2:00 p.m. on a Saturday. Is this permitted under a standard Cobb County development blasting permit?",
+      "execution_time": 11.956
+    },
+    {
+      "question": "What HVAC CFM thresholds determine duct detector placement requirements, and what reporting is required if the building has a fire alarm system?",
+      "execution_time": 10.04
+    },
+    {
+      "question": "Under NFPA 241, what are the standpipe requirements for buildings under construction, and when must temporary standpipes be installed per Cobb County requirements?",
+      "execution_time": 7.186
+    },
+    {
+      "question": "What 11 items plus smoke control panel must be present in a high-rise Emergency Command Center per NFPA 101 Sec. 11.8.6.2?",
+      "execution_time": 7.762
+    },
+    {
+      "question": "What door hardware requirements for egress compliance does the Cobb County Pre-Construction Meeting specify?",
+      "execution_time": 5.53
+    },
+    {
+      "question": "Combining the Development Blasting Ordinance Sec. 18-359 and the Blasting Permit Application, what additional studies or assessments beyond the seven standard documents might the Fire Marshal's Office require?",
+      "execution_time": 4.574
+    },
+    {
+      "question": "What does Section 605.6 of the 2012 International Fire Code require regarding electrical junction boxes and wiring splices?",
+      "execution_time": 15.907
+    },
+    {
+      "question": "What is the minimum fine per day for continuing work after receiving a stop work order under Cobb County Code Sec. 54-52?",
+      "execution_time": 5.543
+    },
+    {
+      "question": "A sprinkler contractor covers newly installed aboveground sprinkler pipe before CCFMO inspection. What enforcement action may CCFMO take per the Pre-Construction Meeting?",
+      "execution_time": 5.115
+    },
+    {
+      "question": "What is the false fire alarm fee structure in Cobb County per Code Sec. 54-103, and how many alarms are allowed before fees begin?",
+      "execution_time": 5.855
+    },
+    {
+      "question": "What fire pump testing and logging requirements must existing apartment occupancies comply with per the Cobb County Existing Apartment Occupancy Checklist?",
+      "execution_time": 9.138
+    },
+    {
+      "question": "How is 'substantial renovation' defined for purposes of Cobb County Certificate of Occupancy requirements per Code Sec. 54-51?",
+      "execution_time": 9.631
+    },
+    {
+      "question": "What board and care and community living arrangement sprinkler requirements apply under Cobb County Code Sec. 54-93?",
+      "execution_time": 14.012
+    },
+    {
+      "question": "A fire inspector arrives for a welded pipe check and finds no welder's mark on the pipe and no welder's certificate on site. What must occur before the inspection can proceed per the CCFMO Pre-Construction Meeting?",
+      "execution_time": 6.205
+    },
+    {
+      "question": "A developer's named blaster becomes unavailable after a blasting permit has been issued. What must the user do before the replacement blaster can detonate?",
+      "execution_time": 6.652
+    },
+    {
+      "question": "What authority does Cobb County Fire and Emergency Services have over private fire hydrants at one-family and two-family dwellings per Cobb County Code Sec. 54-59(a)?",
+      "execution_time": 5.963
+    },
+    {
+      "question": "What are the handrail height range, clearance from wall, and guardrail height requirements per the Cobb County Pre-Construction Meeting?",
+      "execution_time": 5.709
+    },
+    {
+      "question": "What is the maximum allowable threshold height at commercial door openings per NFPA 101 Section 7.2.1.3.3?",
+      "execution_time": 7.231
+    },
+    {
+      "question": "Combining Cobb County Hydrant Ordinance Sec. 54-59 and the Private Hydrant Guide, what are the qualifications and record-keeping requirements for companies performing private hydrant maintenance and flow tests?",
+      "execution_time": 5.988
+    },
+    {
+      "question": "What restrictions does Section 605.5 of the 2012 International Fire Code place on extension cord and flexible cord use?",
+      "execution_time": 6.47
+    },
+    {
+      "question": "What signage must be posted on the exterior of a CFRS facility and within aisles per NFPA 1124?",
+      "execution_time": 6.524
+    },
+    {
+      "question": "How does the tenant Certificate of Occupancy process differ for businesses in unincorporated Cobb County versus those in Kennesaw, Acworth, Mableton, or Powder Springs?",
+      "execution_time": 7.126
+    },
+    {
+      "question": "What maximum merchandise display heights apply in CFRS facilities, and how much floor space must remain open per NFPA 1124?",
+      "execution_time": 6.031
+    },
+    {
+      "question": "What is the fee schedule for silencing or resetting a fire alarm without prior approval in Cobb County per Code Sec. 54-103?",
+      "execution_time": 12.127
+    },
+    {
+      "question": "What is the minimum clear door width required per NFPA 101 Section 7.2.1.2.3.2 in the Cobb County New Shell Building Plan Review checklist?",
+      "execution_time": 5.454
+    },
+    {
+      "question": "Can a portable generator at a Consumer Fireworks Retail Sales facility use Class I combustible liquid fuel? What fuel is permitted and how close may the generator be located?",
+      "execution_time": 11.996
+    },
+    {
+      "question": "What inspection requirements apply to two-hour and above fire-rated barriers during construction per the Cobb County Pre-Construction Meeting?",
+      "execution_time": 8.885
+    },
+    {
+      "question": "Is a building owner permitted to turn off fire sprinkler water supply during freezing weather and post a fire watch instead?",
+      "execution_time": 7.29
+    },
+    {
+      "question": "What does the Cobb County Pre-Construction Meeting specify for new generator installations, including transfer test and tank permit requirements?",
+      "execution_time": 8.415
+    },
+    {
+      "question": "What is the plan review fee for a storage or fuel tank permit in Cobb County, and what fines apply for failure to obtain a permit or call for inspection per Code Sec. 54-54.1?",
+      "execution_time": 6.442
+    },
+    {
+      "question": "What 14 systems or structures require separate plan submittals to the CCFMO per the Pre-Construction Meeting?",
+      "execution_time": 6.421
+    },
+    {
+      "question": "What fire barrier requirements apply to CFRS storage rooms and multi-tenant CFRS spaces per NFPA 1124?",
+      "execution_time": 6.255
+    },
+    {
+      "question": "What are the height, setback, and operational requirements for Post Indicator Valves (PIVs) per the Cobb County Pre-Construction Meeting?",
+      "execution_time": 6.03
+    },
+    {
+      "question": "What are the fire department apparatus access road requirements for buildings under construction per NFPA 241 (2013)?",
+      "execution_time": 7.175
+    },
+    {
+      "question": "What minimum insurance liability is required to obtain a development blasting permit in Cobb County, and what seven documents must be submitted?",
+      "execution_time": 9.38
+    },
+    {
+      "question": "What are the wet pipe sprinkler temperature and heating requirements across the Pre-Construction Meeting and Freezing Weather policy, and what are the legal consequences of disabling a sprinkler to prevent freeze damage?",
+      "execution_time": 12.299
+    },
+    {
+      "question": "What fire wall ratings and opening protection requirements does NFPA 1124 impose on CFRS facilities based on distance from adjacent buildings per Table 7.4.7.1.1?",
+      "execution_time": 6.745
+    },
+    {
+      "question": "What separation distances must a Consumer Fireworks Retail Sales facility maintain from propane-dispensing stations and aboveground bulk storage per NFPA 1124?",
+      "execution_time": 5.859
+    },
+    {
+      "question": "What are the Georgia State Minimum Standard Codes and their editions in effect as of January 1, 2026?",
+      "execution_time": 6.89
+    },
+    {
+      "question": "Combining Cobb County Code Sec. 54-101, Sec. 54-102, and the Pre-Construction Meeting, what are all NICET/CFAT certification requirements and prohibited acts governing fire alarm systems in Cobb County?",
+      "execution_time": 8.162
+    },
+    {
+      "question": "What are the minimum setback distances for transformer pads from a building and from doorways per the Cobb County Pre-Construction Meeting?",
+      "execution_time": 5.52
+    },
+    {
+      "question": "At what height must a Knox Box be mounted on a building in Cobb County, and which series is most commonly purchased?",
+      "execution_time": 6.181
+    },
+    {
+      "question": "What escrow amount may be required from a development blasting permit applicant in Cobb County, and what is its purpose per Cobb County Code Sec. 18-361?",
+      "execution_time": 9.968
+    },
+    {
+      "question": "Per Cobb County Code of Ordinances, how are the terms 'fire code official' and 'authority having jurisdiction' defined for purposes of enforcing the International Fire Code in Cobb County?",
+      "execution_time": 7.853
+    },
+    {
+      "question": "What stair signage letter size, placement height, and content requirements apply to high-rise buildings in Cobb County per NFPA 101 Section 7.2.2.5.4?",
+      "execution_time": 4.195
+    },
+    {
+      "question": "What rules govern temporary tank installations in Cobb County per Code Sec. 54-54.1, including permit requirements and minimum distance from structures?",
+      "execution_time": 6.213
+    },
+    {
+      "question": "What is the minimum number of spare sprinkler heads required on premises, and what are the NFPA 25 storage conditions?",
+      "execution_time": 3.709
+    },
+    {
+      "question": "What documentation must be collected BEFORE scheduling a fire sprinkler final inspection AND a fire alarm final inspection in Cobb County per the Pre-Construction Meeting?",
+      "execution_time": 14.171
+    },
+    {
+      "question": "What are the minimum address number height requirements for commercial establishments under Cobb County Code?",
+      "execution_time": 9.53
+    },
+    {
+      "question": "What exit sign placement requirement specifies maximum spacing in exit access corridors per NFPA 101, as used in the Cobb County New Shell Building Plan Review?",
+      "execution_time": 7.562
+    },
+    {
+      "question": "What seven locations must have two-way telephone communication connected to the Emergency Command Center in a high-rise building per NFPA 72 Section 24.5.1.11?",
+      "execution_time": 5.295
+    },
+    {
+      "question": "What fire safety site requirements must be met before combustible materials arrive on a new commercial construction site in Cobb County, drawing from the Pre-Construction Meeting, NFPA 241, and the Cobb County Code of Ordinances?",
+      "execution_time": 4.872
+    },
+    {
+      "question": "An apartment building owner in Cobb County receives a non-compliance notice for fire hydrant deficiencies. What three specific deadlines apply, and what must the Intent to Comply include per Code Sec. 54-60?",
+      "execution_time": 5.834
+    },
+    {
+      "question": "What are all the rules governing reinspection fees in Cobb County per the Code of Ordinances, including when fees are assessed, payment deadlines, and the appeal process?",
+      "execution_time": 5.417
+    },
+    {
+      "question": "A developer plans a 1,200-person outdoor concert in a parking lot in unincorporated Cobb County. What permit is required, and how must crowd size be measured per Code Sec. 54-54.2?",
+      "execution_time": 7.78
+    },
+    {
+      "question": "What are the blasting vibration-frequency and air blast intensity limits under Cobb County Code Sec. 18-360?",
+      "execution_time": 5.465
+    },
+    {
+      "question": "What minimum liability insurance is required for a fire sprinkler permit in Cobb County, and what are the insurer requirements per Code Sec. 54-83?",
+      "execution_time": 7.401
+    },
+    {
+      "question": "What is the minimum burial depth for underground fire mains, and what must happen before any pipe is covered per the Cobb County Pre-Construction Meeting?",
+      "execution_time": 7.414
+    },
+    {
+      "question": "What standby power transfer time and continuous duration requirements apply to high-rise buildings per NFPA 101 and IFC?",
+      "execution_time": 5.755
+    },
+    {
+      "question": "How many exits are required for buildings with 500\u20131,000 occupants and for buildings exceeding 1,000 occupants per NFPA 101 as used in the CCFMO New Shell Building Plan Review?",
+      "execution_time": 26.155
+    },
+    {
+      "question": "When is a Fire Marshal permit required for outdoor social gatherings in Cobb County, and how is crowd size calculated per Code Sec. 54-54.2?",
+      "execution_time": 7.335
+    },
+    {
+      "question": "What are the working space dimensions required in front of electrical service equipment per Section 605.3 of the 2012 International Fire Code, and what storage restriction applies?",
+      "execution_time": 4.908
+    },
+    {
+      "question": "An 18,000 CFM HVAC unit is being installed in a building with a fire alarm system. What duct detector placement and reporting requirements apply?",
+      "execution_time": 5.716
+    },
+    {
+      "question": "After the CCFMO approves plans for a tenant space in unincorporated Cobb County, what are the next steps to request FMO inspections?",
+      "execution_time": 6.018
+    },
+    {
+      "question": "A building with an occupant load of 750 has only two exits. Is this code-compliant per NFPA 101, and what is required to achieve compliance?",
+      "execution_time": 6.364
+    },
+    {
+      "question": "A fire alarm in an occupied commercial building is silenced before the fire department arrives. The owner claims it was a known equipment malfunction. What is the legal consequence and what exception might apply per Cobb County Code Sec. 54-102 and 54-103?",
+      "execution_time": 5.738
+    },
+    {
+      "question": "What fire extinguisher types, hazard ratings, and minimum counts are required for a CFRS facility with electrical power per NFPA 1124?",
+      "execution_time": 5.291
+    },
+    {
+      "question": "What are the AED installation requirements for commercial buildings in Cobb County per the Code of Ordinances (Sec. 54-65)?",
+      "execution_time": 5.031
+    },
+    {
+      "question": "What are the outdoor burning violation penalty tiers under Cobb County Code Sec. 54-118, and over what time period are multiple violations counted?",
+      "execution_time": 7.011
+    },
+    {
+      "question": "What clearance distances must be maintained from storage to sprinkler heads per NFPA 25 Section A-5.2.1.2, and what correction does the code require when obstructions exist?",
+      "execution_time": 6.796
+    },
+    {
+      "question": "What does Section 5303.5.3 of the 2012 International Fire Code require for compressed gas cylinders, and what three causes of falling must securing prevent?",
+      "execution_time": 4.676
+    },
+    {
+      "question": "What are the complete steps for a tenant in Unincorporated Cobb County to obtain a Certificate of Occupancy, and how does approval expiration affect the timeline per the Ordinances?",
+      "execution_time": 7.116
+    },
+    {
+      "question": "What are the penalties for a first intensity blasting violation under Cobb County Code Sec. 18-363, including fines and work stoppage?",
+      "execution_time": 7.352
+    },
+    {
+      "question": "Combining the New Shell Building Plan Review, Pre-Construction Meeting, and Common Code Violations, what are all the requirements governing fire department connections (FDCs) for new multi-story commercial buildings in Cobb County?",
+      "execution_time": 7.745
+    },
+    {
+      "question": "What sprinkler standards apply to new apartment buildings based on number of stories under Cobb County Code Sec. 54-93, and what additional areas must be protected?",
+      "execution_time": 4.833
+    },
+    {
+      "question": "Combining Cobb County Code Sec. 54-93, Sec. 54-83, and the Pre-Construction Meeting, what sprinkler standard, contractor licensing, and insurance requirements must be met before the CCFMO issues a fire sprinkler permit for a new 3-story apartment building?",
+      "execution_time": 5.443
+    },
+    {
+      "question": "What type of Knox product is required for electric gates versus manual gates restricting emergency vehicle access, and what key storage rules apply?",
+      "execution_time": 5.245
+    },
+    {
+      "question": "What are the composition, quorum, and voting requirements for the Fire Prevention and Protection Safety Ordinance Board of Appeals per Cobb County Code Sec. 54-119?",
+      "execution_time": 4.836
+    },
+    {
+      "question": "What NICET certification requirements apply to fire alarm plan submittals and on-site work in Cobb County, and what equivalent certification is accepted per Code Sec. 54-101?",
+      "execution_time": 5.956
+    },
+    {
+      "question": "A new 5-story apartment building is under construction in Cobb County. What sprinkler standard applies, and must the second-floor balconies and their adjacent storage closets be sprinklered per Code Sec. 54-93?",
+      "execution_time": 4.842
+    },
+    {
+      "question": "Combining the Pre-Construction Meeting, Cobb County Hydrant Ordinance Sec. 54-59, and the Private Hydrant Guide, what are all the commissioning, orientation, color, marking, and clearance requirements for new private fire hydrants at commercial construction sites?",
+      "execution_time": 6.351
+    },
+    {
+      "question": "What setback distance from structures is required for recreational fires in unincorporated Cobb County per Sec. 54-116, and what are the permitted burning hours?",
+      "execution_time": 5.01
+    },
+    {
+      "question": "What minimum working space must be maintained around fire department connections on existing buildings per Section 912.3.2 of the 2012 International Fire Code?",
+      "execution_time": 5.493
+    },
+    {
+      "question": "What are the permitted days and hours for blasting activity under a Cobb County development blasting permit per Cobb County Code Sec. 18-361?",
+      "execution_time": 6.911
+    },
+    {
+      "question": "What must happen immediately when a required fire protection system goes out of service in Cobb County, and what are the specific duties of a fire watch?",
+      "execution_time": 4.951
+    },
+    {
+      "question": "What does NFPA 10 Section 7.3.2.1 require for annual fire extinguisher inspections, and what must each extinguisher have attached after maintenance?",
+      "execution_time": 9.448
+    },
+    {
+      "question": "When does NFPA 1124 require a fire sprinkler system in a Consumer Fireworks Retail Sales (CFRS) facility?",
+      "execution_time": 5.849
+    },
+    {
+      "question": "What colors must fire sprinkler control valves, PIVs, WPIVs, and underground fire main sectional control valves be painted per Cobb County Code Sec. 54-96?",
+      "execution_time": 4.546
+    },
+    {
+      "question": "How is fire code authority structured in Georgia, and what three duties does the Cobb County Fire Marshal Office perform per O.C.G.A.?",
+      "execution_time": 6.329
+    },
+    {
+      "question": "What is the timeline for the Board of Appeals to hear a filed appeal, and within how many days must a written decision be issued per Cobb County Code Sec. 54-120 and Sec. 54-121?",
+      "execution_time": 7.481
+    },
+    {
+      "question": "What are the complete Knox Box installation requirements in Cobb County, combining the Knox Box Guide and the Pre-Construction Meeting checklist?",
+      "execution_time": 8.983
+    },
+    {
+      "question": "What minimum pedestrian walkway width is required in front of each tenant space in a mall per the Cobb County Tenant CO Procedures?",
+      "execution_time": 7.479
+    },
+    {
+      "question": "When a business changes ownership in unincorporated Cobb County with no change in occupancy or renovation, what administrative step is required and will a new CO be issued per Code Sec. 54-51?",
+      "execution_time": 5.316
+    },
+    {
+      "question": "What must be kept within 25 feet of any outdoor fire in unincorporated Cobb County per Sec. 54-116, and how close must an attending adult remain?",
+      "execution_time": 4.942
+    },
+    {
+      "question": "What permit is required for a bonfire in Cobb County, what are the minimum setback distances, and what are the maximum dimensions per Sec. 54-117?",
+      "execution_time": 5.228
+    },
+    {
+      "question": "What charcoal grilling restrictions apply on combustible balconies under Cobb County fire code, and what three exceptions apply?",
+      "execution_time": 5.709
+    },
+    {
+      "question": "Combining the Existing Apartment Occupancy Checklist and Common Code Violations, what electrical violations are inspected at existing apartment occupancies and what code sections govern each?",
+      "execution_time": 7.465
+    },
+    {
+      "question": "What are the minimum exit count, maximum travel distance, and aisle requirements for Consumer Fireworks Retail Sales facilities per NFPA 1124?",
+      "execution_time": 7.437
+    },
+    {
+      "question": "What seven electrical systems must high-rise standby power serve simultaneously per IFC 604.2.14.1.2?",
+      "execution_time": 5.263
+    },
+    {
+      "question": "Combining the Existing Apartment Occupancy Checklist and NFPA 25, what are all the required testing and inspection frequencies for fire sprinkler systems at existing apartment occupancies in Cobb County?",
+      "execution_time": 8.28
     }
   ]
 }

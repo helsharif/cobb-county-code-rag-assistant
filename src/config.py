@@ -16,9 +16,19 @@ load_dotenv(ROOT_DIR / ".env")
 
 ORIGINAL_COLLECTION_NAME = "cobb_code_docs_original"
 DOCLING_COLLECTION_NAME = "cobb_code_docs_docling"
+OPTION_1_LABEL = "Option 1: PyPDF + Chromadb"
+OPTION_2_LABEL = "Option 2: Docling + Chromadb"
 COLLECTION_OPTIONS = {
-    "Original": ORIGINAL_COLLECTION_NAME,
-    "Docling": DOCLING_COLLECTION_NAME,
+    OPTION_1_LABEL: ORIGINAL_COLLECTION_NAME,
+    OPTION_2_LABEL: DOCLING_COLLECTION_NAME,
+}
+COLLECTION_SLUGS = {
+    ORIGINAL_COLLECTION_NAME: "pypdf_chroma",
+    DOCLING_COLLECTION_NAME: "docling_chroma",
+}
+LEGACY_COLLECTION_LABELS = {
+    "Original": OPTION_1_LABEL,
+    "Docling": OPTION_2_LABEL,
 }
 
 
