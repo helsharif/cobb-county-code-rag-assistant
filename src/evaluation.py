@@ -17,17 +17,20 @@ from langchain_openai import ChatOpenAI
 from langsmith import Client, traceable
 from typing_extensions import Annotated, TypedDict
 
-from src.agent import CobbCountyRAGAgent
+from src.agent import NO_ANSWER, CobbCountyRAGAgent
 from src.config import (
     COLLECTION_SLUGS,
+    DOCLING_CHROMA_BM25_COLLECTION_NAME,
+    DOCLING_CHROMA_BM25_EXPANSION_COLLECTION_NAME,
     DOCLING_COLLECTION_NAME,
     OPTION_1_LABEL,
     OPTION_2_LABEL,
+    OPTION_3_LABEL,
+    OPTION_4_LABEL,
     ORIGINAL_COLLECTION_NAME,
     ROOT_DIR,
     get_settings,
 )
-from src.retriever import search_documents
 
 
 logger = logging.getLogger(__name__)
@@ -52,6 +55,8 @@ LANGSMITH_DATASET_PREFIX = "cobb-county-rag-eval-testset"
 CONFIG_LABELS = {
     ORIGINAL_COLLECTION_NAME: OPTION_1_LABEL,
     DOCLING_COLLECTION_NAME: OPTION_2_LABEL,
+    DOCLING_CHROMA_BM25_COLLECTION_NAME: OPTION_3_LABEL,
+    DOCLING_CHROMA_BM25_EXPANSION_COLLECTION_NAME: OPTION_4_LABEL,
 }
 
 ProgressCallback = Callable[[dict[str, Any]], None]
@@ -88,7 +93,17 @@ def load_eval_results(collection_name: str) -> dict[str, Any] | None:
     if not result_file.path.exists():
         return None
     with result_file.path.open("r", encoding="utf-8") as file:
-        return json.load(file)
+        payload = json.load(file)
+    try:
+        current_testset = ensure_testset()
+        if payload.get("question_count") != len(current_testset):
+            return None
+        saved_hash = payload.get("testset_sha256")
+        if saved_hash and saved_hash != _testset_hash(current_testset):
+            return None
+    except Exception as exc:
+        logger.warning("Could not validate cached evaluation results: %s", exc)
+    return payload
 
 
 def save_eval_results(collection_name: str, payload: dict[str, Any]) -> Path:
@@ -131,7 +146,7 @@ def append_eval_results_log(payload: dict[str, Any]) -> Path:
 
 
 def ensure_testset() -> pd.DataFrame:
-    """Load the fixed 100-question evaluation test set from eval_testset/."""
+    """Load the fixed 50-question evaluation test set from eval_testset/."""
 
     if not TESTSET_PATH.exists():
         raise FileNotFoundError(
@@ -167,7 +182,7 @@ def ensure_langsmith_dataset(client: Client, testset: pd.DataFrame) -> tuple[str
     dataset = client.create_dataset(
         dataset_name=dataset_name,
         description=(
-            "Fixed 100-question Cobb County building and fire code RAG evaluation set "
+            "Fixed 50-question Cobb County building and fire code RAG evaluation set "
             "loaded from eval_testset/cobb_county_testset.csv."
         ),
         metadata={"testset_sha256": dataset_hash, "row_count": len(examples)},
@@ -188,7 +203,7 @@ def run_langsmith_evaluation(
     if not settings.langsmith_api_key:
         raise ValueError("LANGSMITH_API_KEY is required to create and retrieve LangSmith evaluation scores.")
 
-    _emit_progress(progress_callback, phase="loading_testset", message="Loading fixed 100-question CSV test set.")
+    _emit_progress(progress_callback, phase="loading_testset", message="Loading fixed 50-question CSV test set.")
     testset = ensure_testset()
 
     client = Client()
@@ -221,11 +236,24 @@ def run_langsmith_evaluation(
         )
         started_query = time.perf_counter()
         agent = CobbCountyRAGAgent(collection_name=collection_name)
-        result = agent.answer(question)
-        docs, sources = search_documents(question, collection_name=collection_name)
+        error_message = None
+        try:
+            result = _answer_with_backoff(agent, question, settings)
+            answer = result.answer
+            contexts = list(result.contexts or [])
+            sources = result.sources
+            used_local = result.used_local
+            used_web = result.used_web
+        except Exception as exc:
+            error_message = f"{exc.__class__.__name__}: {exc}"
+            logger.exception("Evaluation target failed for question: %s", question)
+            answer = NO_ANSWER
+            contexts = []
+            sources = []
+            used_local = False
+            used_web = False
         execution_time = round(time.perf_counter() - started_query, 3)
         execution_times.append({"question": question, "execution_time": execution_time})
-        contexts = [doc.page_content for doc in docs]
         _emit_progress(
             progress_callback,
             phase="answering_questions",
@@ -239,12 +267,13 @@ def run_langsmith_evaluation(
             execution_time=execution_time,
         )
         return {
-            "answer": result.answer,
+            "answer": answer,
             "contexts": contexts,
-            "sources": [source.source for source in sources],
-            "used_local": result.used_local,
-            "used_web": result.used_web,
+            "sources": sources,
+            "used_local": used_local,
+            "used_web": used_web,
             "execution_time": execution_time,
+            "error": error_message,
         }
 
     evaluators = _build_langsmith_evaluators()
@@ -294,6 +323,7 @@ def run_langsmith_evaluation(
         "started_at_utc": started_at_utc,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "testset_path": str(TESTSET_PATH.relative_to(ROOT_DIR)),
+        "testset_sha256": _testset_hash(testset),
         "dataset_name": dataset_name,
         "dataset_id": dataset_id,
         "experiment_name": experiment_results.experiment_name,
@@ -316,8 +346,8 @@ def run_langsmith_evaluation(
 
 
 def _build_langsmith_evaluators() -> list[Callable]:
-    get_settings()
-    grader = ChatOpenAI(model="gpt-4o", temperature=0)
+    settings = get_settings()
+    grader = ChatOpenAI(model=settings.eval_judge_model, temperature=0)
 
     faithfulness_llm = grader.with_structured_output(BinaryGrade, method="json_schema", strict=True)
     answer_relevance_llm = grader.with_structured_output(BinaryGrade, method="json_schema", strict=True)
@@ -326,7 +356,8 @@ def _build_langsmith_evaluators() -> list[Callable]:
 
     def faithfulness(inputs: dict, outputs: dict) -> dict:
         facts = _contexts_to_text(outputs)
-        grade = faithfulness_llm.invoke(
+        grade = _invoke_judge_with_backoff(
+            faithfulness_llm,
             [
                 {
                     "role": "system",
@@ -336,12 +367,15 @@ def _build_langsmith_evaluators() -> list[Callable]:
                     ),
                 },
                 {"role": "user", "content": f"FACTS:\n{facts}\n\nANSWER:\n{outputs.get('answer', '')}"},
-            ]
+            ],
+            "faithfulness",
+            settings,
         )
         return _grade_to_feedback("faithfulness", grade)
 
     def answer_relevancy(inputs: dict, outputs: dict) -> dict:
-        grade = answer_relevance_llm.invoke(
+        grade = _invoke_judge_with_backoff(
+            answer_relevance_llm,
             [
                 {
                     "role": "system",
@@ -354,13 +388,16 @@ def _build_langsmith_evaluators() -> list[Callable]:
                     "role": "user",
                     "content": f"QUESTION:\n{inputs.get('question', '')}\n\nANSWER:\n{outputs.get('answer', '')}",
                 },
-            ]
+            ],
+            "answer_relevancy",
+            settings,
         )
         return _grade_to_feedback("answer_relevancy", grade)
 
     def context_precision(inputs: dict, outputs: dict) -> dict:
         facts = _contexts_to_text(outputs)
-        grade = context_precision_llm.invoke(
+        grade = _invoke_judge_with_backoff(
+            context_precision_llm,
             [
                 {
                     "role": "system",
@@ -370,13 +407,16 @@ def _build_langsmith_evaluators() -> list[Callable]:
                     ),
                 },
                 {"role": "user", "content": f"QUESTION:\n{inputs.get('question', '')}\n\nCONTEXTS:\n{facts}"},
-            ]
+            ],
+            "context_precision",
+            settings,
         )
         return _grade_to_feedback("context_precision", grade)
 
     def context_recall(inputs: dict, outputs: dict, reference_outputs: dict) -> dict:
         facts = _contexts_to_text(outputs)
-        grade = context_recall_llm.invoke(
+        grade = _invoke_judge_with_backoff(
+            context_recall_llm,
             [
                 {
                     "role": "system",
@@ -393,11 +433,77 @@ def _build_langsmith_evaluators() -> list[Callable]:
                         f"CONTEXTS:\n{facts}"
                     ),
                 },
-            ]
+            ],
+            "context_recall",
+            settings,
         )
         return _grade_to_feedback("context_recall", grade)
 
     return [faithfulness, answer_relevancy, context_precision, context_recall]
+
+
+def _answer_with_backoff(agent: CobbCountyRAGAgent, question: str, settings):
+    """Run the RAG target with retry/backoff for transient rate limits."""
+
+    delay = max(settings.eval_judge_delay_seconds, 0.0)
+    max_retries = max(settings.eval_judge_max_retries, 0)
+    for attempt in range(max_retries + 1):
+        try:
+            if delay and attempt:
+                time.sleep(delay)
+            return agent.answer(question)
+        except Exception as exc:
+            if not _is_retryable_rate_limit(exc) or attempt >= max_retries:
+                raise
+            wait_seconds = min(max(delay * (2**attempt), 1.0), 60.0)
+            logger.warning(
+                "Rate limit while answering evaluation question; retrying in %.1fs "
+                "(attempt %s/%s).",
+                wait_seconds,
+                attempt + 1,
+                max_retries,
+            )
+            time.sleep(wait_seconds)
+
+
+def _invoke_judge_with_backoff(llm, messages: list[dict[str, str]], metric_name: str, settings) -> dict:
+    """Call an evaluator LLM with retry/backoff for rate limits only."""
+
+    delay = max(settings.eval_judge_delay_seconds, 0.0)
+    max_retries = max(settings.eval_judge_max_retries, 0)
+    if delay:
+        time.sleep(delay)
+    for attempt in range(max_retries + 1):
+        try:
+            return llm.invoke(messages)
+        except Exception as exc:
+            if not _is_retryable_rate_limit(exc) or attempt >= max_retries:
+                raise
+            wait_seconds = min(max(delay * (2**attempt), 1.0), 60.0)
+            logger.warning(
+                "LangSmith evaluator %s hit a rate limit; retrying in %.1f seconds (%s/%s): %s",
+                metric_name,
+                wait_seconds,
+                attempt + 1,
+                max_retries,
+                exc,
+            )
+            time.sleep(wait_seconds)
+    raise RuntimeError(f"Evaluator {metric_name} failed unexpectedly.")
+
+
+def _is_retryable_rate_limit(exc: Exception) -> bool:
+    """Return True for transient 429/rate-limit errors, not exhausted quota."""
+
+    message = str(exc).lower()
+    if "insufficient_quota" in message or "exceeded your current quota" in message:
+        return False
+    return (
+        "ratelimit" in exc.__class__.__name__.lower()
+        or "rate limit" in message
+        or "429" in message
+        or "too many requests" in message
+    )
 
 
 def _grade_to_feedback(key: str, grade: dict) -> dict:
@@ -438,8 +544,8 @@ def _normalize_testset_dataframe(dataframe: pd.DataFrame) -> pd.DataFrame:
     dataframe["question"] = dataframe["question"].astype(str).str.strip()
     dataframe["ground_truth"] = dataframe["ground_truth"].apply(_coerce_ground_truth)
     dataframe = dataframe[(dataframe["question"] != "") & (dataframe["ground_truth"] != "")]
-    if len(dataframe) != 100:
-        raise ValueError(f"Evaluation CSV must contain exactly 100 populated rows; found {len(dataframe)}.")
+    if len(dataframe) != 50:
+        raise ValueError(f"Evaluation CSV must contain exactly 50 populated rows; found {len(dataframe)}.")
     return dataframe[["question", "ground_truth"]].reset_index(drop=True)
 
 

@@ -31,7 +31,7 @@ def main() -> int:
             "phase": "starting",
             "message": "Starting LangSmith evaluation.",
             "current": 0,
-            "total": 100,
+            "total": 50,
             "started_at_utc": started_at_utc,
             "updated_at_utc": started_at_utc,
         },

@@ -8,6 +8,7 @@ os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 import argparse
 import logging
+import time
 import shutil
 from pathlib import Path
 
@@ -19,11 +20,48 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from pypdf import PdfReader
 
-from src.config import DOCLING_COLLECTION_NAME, ORIGINAL_COLLECTION_NAME, get_embeddings, get_settings
+from src.config import (
+    COLLECTION_SLUGS,
+    DOCLING_COLLECTION_NAME,
+    ORIGINAL_COLLECTION_NAME,
+    get_embeddings,
+    get_settings,
+)
 
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 logger = logging.getLogger(__name__)
+
+
+def run_with_rate_limit_backoff(operation, description: str, settings):
+    """Run an embedding/indexing operation with patient retries for API rate limits."""
+
+    max_retries = max(settings.embedding_max_retries, 0)
+    for attempt in range(max_retries + 1):
+        try:
+            return operation()
+        except Exception as exc:
+            message = str(exc).lower()
+            is_rate_limit = (
+                "ratelimit" in exc.__class__.__name__.lower()
+                or "rate limit" in message
+                or "429" in message
+                or "too many requests" in message
+            )
+            if not is_rate_limit or attempt >= max_retries:
+                raise
+
+            wait_seconds = max(settings.embedding_batch_delay_seconds, 0.0) * (2**attempt)
+            wait_seconds = min(max(wait_seconds, 1.0), 60.0)
+            logger.warning(
+                "%s hit an embedding rate limit; retrying in %.1f seconds (%s/%s): %s",
+                description,
+                wait_seconds,
+                attempt + 1,
+                max_retries,
+                exc,
+            )
+            time.sleep(wait_seconds)
 
 
 def find_pdf_files(data_dir: Path) -> list[Path]:
@@ -412,22 +450,49 @@ def delete_collection(collection_name: str) -> None:
 
 def index_documents(documents: list[Document], collection_name: str, rebuild: bool = False) -> int:
     """Embed documents into the requested Chroma collection."""
+    chunks = split_documents(documents)
+    return index_chunks(chunks, collection_name, rebuild=rebuild)
+
+
+def index_chunks(chunks: list[Document], collection_name: str, rebuild: bool = False) -> int:
+    """Embed pre-split chunks into the requested Chroma collection."""
     settings = get_settings()
     settings.vectorstore_dir.mkdir(parents=True, exist_ok=True)
     if rebuild:
         delete_collection(collection_name)
-    if not documents:
+    if not chunks:
         return 0
 
-    chunks = split_documents(documents)
-    logger.info("Indexing %s chunks into Chroma collection %s.", len(chunks), collection_name)
-
-    Chroma.from_documents(
-        documents=chunks,
-        embedding=get_embeddings(settings),
-        collection_name=collection_name,
-        persist_directory=str(settings.vectorstore_dir),
+    batch_size = max(settings.embedding_batch_size, 1)
+    logger.info(
+        "Indexing %s chunks into Chroma collection %s in embedding batches of %s.",
+        len(chunks),
+        collection_name,
+        batch_size,
     )
+
+    vectorstore = Chroma(
+        collection_name=collection_name,
+        embedding_function=get_embeddings(settings),
+        persist_directory=str(settings.vectorstore_dir),
+        client_settings=ChromaSettings(anonymized_telemetry=False),
+    )
+    for start in range(0, len(chunks), batch_size):
+        batch = chunks[start : start + batch_size]
+        run_with_rate_limit_backoff(
+            lambda batch=batch: vectorstore.add_documents(batch),
+            f"Chroma batch {start + 1}-{min(start + len(batch), len(chunks))}",
+            settings,
+        )
+        logger.info(
+            "Indexed Chroma batch %s-%s of %s for collection %s.",
+            start + 1,
+            min(start + len(batch), len(chunks)),
+            len(chunks),
+            collection_name,
+        )
+        if settings.embedding_batch_delay_seconds > 0 and start + batch_size < len(chunks):
+            time.sleep(settings.embedding_batch_delay_seconds)
     logger.info("Vectorstore collection %s ready at %s.", collection_name, settings.vectorstore_dir)
     return len(chunks)
 
@@ -446,23 +511,128 @@ def build_docling_vectorstore(rebuild: bool = False) -> int:
     return index_documents(documents, DOCLING_COLLECTION_NAME, rebuild=rebuild)
 
 
-def build_vectorstore(rebuild: bool = False, pipeline: str = "original") -> int:
-    """Build one or both Chroma collections and return the indexed chunk count."""
+def build_docling_chroma_bm25_hybrid(rebuild: bool = False) -> int:
+    """Build the Docling Chroma collection plus local BM25 corpus."""
+    from src.hybrid_store import save_bm25_corpus
+
     settings = get_settings()
-    if rebuild and pipeline == "both" and settings.vectorstore_dir.exists():
+    documents = load_pdfs_with_docling(settings.data_dir)
+    chunks = split_documents(documents)
+    count = index_chunks(chunks, DOCLING_COLLECTION_NAME, rebuild=rebuild)
+    save_bm25_corpus(chunks, settings=settings)
+    return count
+
+
+PIPELINE_ALIASES = {
+    "original": "pypdf_chroma",
+    "pypdf": "pypdf_chroma",
+    "pypdf_chroma": "pypdf_chroma",
+    "docling": "docling_chroma",
+    "docling_chroma": "docling_chroma",
+    "hybrid": "docling_chroma_bm25_hybrid",
+    "bm25": "docling_chroma_bm25_hybrid",
+    "docling_chroma_bm25_hybrid": "docling_chroma_bm25_hybrid",
+    "expansion": "docling_chroma_bm25_expansion",
+    "query_expansion": "docling_chroma_bm25_expansion",
+    "docling_chroma_bm25_expansion": "docling_chroma_bm25_expansion",
+    "both": "pypdf_chroma,docling_chroma",
+    "all": "pypdf_chroma,docling_chroma_bm25_hybrid",
+}
+
+
+def normalize_pipeline_slugs(pipeline: str) -> list[str]:
+    """Normalize comma-separated ingestion options to canonical slugs."""
+
+    slugs: list[str] = []
+    for raw_item in pipeline.split(","):
+        item = raw_item.strip().lower()
+        if not item:
+            continue
+        normalized = PIPELINE_ALIASES.get(item, item)
+        if "," in normalized:
+            slugs.extend(normalize_pipeline_slugs(normalized))
+            continue
+        if normalized not in set(COLLECTION_SLUGS.values()):
+            raise ValueError(f"Unsupported ingestion pipeline or slug: {raw_item}")
+        if normalized not in slugs:
+            slugs.append(normalized)
+    return slugs or ["pypdf_chroma"]
+
+
+def build_vectorstore(rebuild: bool = False, pipeline: str = "pypdf_chroma") -> int:
+    """Build one or more configured retrieval backends and return the indexed chunk count."""
+    settings = get_settings()
+    slugs = normalize_pipeline_slugs(pipeline)
+    log_effective_ingestion_settings(settings, slugs)
+    chroma_full_rebuilt = rebuild and {"pypdf_chroma", "docling_chroma"}.issubset(set(slugs))
+    if chroma_full_rebuilt and settings.vectorstore_dir.exists():
         logger.info("Rebuilding all vectorstore collections at %s.", settings.vectorstore_dir)
         shutil.rmtree(settings.vectorstore_dir)
         settings.vectorstore_dir.mkdir(parents=True, exist_ok=True)
 
-    if pipeline == "original":
-        return build_original_vectorstore(rebuild=rebuild)
-    if pipeline == "docling":
-        return build_docling_vectorstore(rebuild=rebuild)
-    if pipeline == "both":
-        original_count = build_original_vectorstore(rebuild=False)
-        docling_count = build_docling_vectorstore(rebuild=False)
-        return original_count + docling_count
-    raise ValueError(f"Unsupported ingestion pipeline: {pipeline}")
+    total = 0
+    for slug in slugs:
+        if slug == "pypdf_chroma":
+            total += build_original_vectorstore(rebuild=rebuild and not chroma_full_rebuilt)
+        elif slug == "docling_chroma":
+            total += build_docling_vectorstore(rebuild=rebuild and not chroma_full_rebuilt)
+        elif slug == "docling_chroma_bm25_hybrid":
+            total += build_docling_chroma_bm25_hybrid(rebuild=rebuild)
+        elif slug == "docling_chroma_bm25_expansion":
+            logger.info(
+                "Option 4 uses the same physical Docling Chroma + BM25 corpus as Option 3; building hybrid corpus."
+            )
+            total += build_docling_chroma_bm25_hybrid(rebuild=rebuild)
+        else:
+            raise ValueError(f"Unsupported ingestion slug: {slug}")
+    return total
+
+
+def log_effective_ingestion_settings(settings, slugs: list[str]) -> None:
+    """Log non-secret settings that affect ingestion and retrieval behavior."""
+
+    logger.info("Ingestion pipeline slugs: %s.", ", ".join(slugs))
+    logger.info("Data directory: %s.", settings.data_dir)
+    logger.info("Chroma vectorstore directory: %s.", settings.vectorstore_dir)
+    logger.info(
+        "Chunking and embedding request settings: CHUNK_SIZE=%s, CHUNK_OVERLAP=%s, "
+        "EMBEDDING_BATCH_SIZE=%s, EMBEDDING_BATCH_DELAY_SECONDS=%s, EMBEDDING_MAX_RETRIES=%s.",
+        settings.chunk_size,
+        settings.chunk_overlap,
+        settings.embedding_batch_size,
+        settings.embedding_batch_delay_seconds,
+        settings.embedding_max_retries,
+    )
+    logger.info(
+        "Embedding settings: EMBEDDING_PROVIDER=%s, OPENAI_EMBEDDING_MODEL=%s, GEMINI_EMBEDDING_MODEL=%s.",
+        settings.embedding_provider,
+        settings.openai_embedding_model,
+        settings.gemini_embedding_model,
+    )
+    logger.info(
+        "Retrieval runtime settings: RETRIEVER_K=%s, MIN_RELEVANCE_SCORE=%s.",
+        settings.retriever_k,
+        settings.min_relevance_score,
+    )
+    if any(slug in {"docling_chroma", "docling_chroma_bm25_hybrid", "docling_chroma_bm25_expansion"} for slug in slugs):
+        logger.info(
+            "Docling settings: DOCLING_ACCELERATOR_DEVICE=%s, DOCLING_NUM_THREADS=%s, "
+            "DOCLING_DO_OCR=%s, DOCLING_BATCH_SIZE=%s, DOCLING_MAX_PAGES=%s, "
+            "DOCLING_PAGE_CHUNK_SIZE=%s, DOCLING_PAGE_OVERLAP=%s.",
+            settings.docling_accelerator_device,
+            settings.docling_num_threads,
+            settings.docling_do_ocr,
+            settings.docling_batch_size,
+            settings.docling_max_pages,
+            settings.docling_page_chunk_size,
+            settings.docling_page_overlap,
+        )
+    if any(slug in {"docling_chroma_bm25_hybrid", "docling_chroma_bm25_expansion"} for slug in slugs):
+        logger.info(
+            "BM25 settings: BM25_INDEX_DIR=%s, BM25_INDEX_FILE=%s.",
+            settings.bm25_index_dir,
+            settings.bm25_index_file,
+        )
 
 
 def main() -> None:
@@ -470,9 +640,13 @@ def main() -> None:
     parser.add_argument("--rebuild", action="store_true", help="Delete and rebuild the existing Chroma index.")
     parser.add_argument(
         "--pipeline",
-        choices=["original", "docling", "both"],
-        default="original",
-        help="Which ingestion pipeline to run. Default preserves the original behavior.",
+        default="pypdf_chroma",
+        help=(
+            "Comma-separated ingestion slugs or aliases. Supported slugs: "
+            "pypdf_chroma, docling_chroma, docling_chroma_bm25_hybrid, docling_chroma_bm25_expansion. "
+            "Aliases: original, docling, bm25, hybrid, expansion, both, all. "
+            "The expansion slug builds the same Docling Chroma + BM25 corpus used by the hybrid pipeline."
+        ),
     )
     parser.add_argument(
         "--docling-device",
@@ -483,8 +657,9 @@ def main() -> None:
     if args.docling_device:
         os.environ["DOCLING_ACCELERATOR_DEVICE"] = args.docling_device
     
-    count = build_vectorstore(rebuild=args.rebuild, pipeline=args.pipeline)
-    print(f"Indexed {count} chunks with pipeline={args.pipeline}.")
+    slugs = normalize_pipeline_slugs(args.pipeline)
+    count = build_vectorstore(rebuild=args.rebuild, pipeline=",".join(slugs))
+    print(f"Indexed {count} chunks with pipeline_slugs={','.join(slugs)}.")
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ tiktoken>=0.7,<1.0
 docling>=2.15,<3.0
 sentence-transformers>=3.0,<4.0
 pymupdf>=1.24,<2.0
+rank-bm25>=0.2.2,<0.3
 
 # Docling's current layout model uses rt_detr_v2, which requires Transformers 4.49+.
 transformers>=4.49,<5.0

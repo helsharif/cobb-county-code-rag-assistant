@@ -11,4 +11,5 @@ __pycache__/
 data/raw/
 data/**/*.pdf
 vectorstore/
+bm25_index/
 streamlit*.log

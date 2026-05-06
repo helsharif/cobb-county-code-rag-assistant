@@ -25,7 +25,11 @@ from src.config import (  # noqa: E402
     COLLECTION_SLUGS,
     LEGACY_COLLECTION_LABELS,
     OPTION_1_LABEL,
+    OPTION_2_LABEL,
+    OPTION_3_LABEL,
+    OPTION_4_LABEL,
     ORIGINAL_COLLECTION_NAME,
+    get_settings,
 )
 
 
@@ -59,7 +63,7 @@ RETRIEVAL_OPTIONS = COLLECTION_OPTIONS
 PAGE_OPTIONS = ["Ask", "Settings & Eval", "About the App"]
 EVAL_RESULTS_DIR = ROOT_DIR / "eval_results"
 EVAL_STATUS_DIR = ROOT_DIR / "eval_status"
-EVAL_AUTO_REFRESH_SECONDS = 8
+EVAL_AUTO_REFRESH_SECONDS = 20
 NO_ANSWER = "I could not find a reliable answer in the available documents or web sources."
 
 
@@ -144,7 +148,7 @@ def render_chat_tab() -> None:
     if not cached_vectorstore_exists(collection_name):
         st.warning(
             f"No local vector index found for `{collection_name}`. Build it with "
-            "`python -m src.ingestion --rebuild --pipeline both`, then restart or refresh the app."
+            "`python -m src.ingestion --rebuild --pipeline all`, then restart or refresh the app."
         )
 
     if "messages" not in st.session_state:
@@ -250,7 +254,7 @@ def _web_status_caption(message: dict) -> str:
 def render_settings_eval_tab() -> None:
     st.subheader("Settings & Eval")
     st.write(
-        "Switch retrieval backends and review persisted LangSmith evaluation metrics for each vector store."
+        "Switch retrieval configurations and review persisted LangSmith evaluation metrics for each RAG pipeline."
     )
     current_collection = get_selected_collection()
     labels = list(RETRIEVAL_OPTIONS)
@@ -258,10 +262,10 @@ def render_settings_eval_tab() -> None:
     if st.session_state.get("backend_label") != current_label:
         st.session_state.backend_label = current_label
     selected_label = st.radio(
-        "Vector store",
+        "Retrieval configuration",
         options=labels,
         index=labels.index(current_label) if current_label in labels else 0,
-        horizontal=True,
+        horizontal=False,
         key="backend_label",
         on_change=on_backend_change,
     )
@@ -272,10 +276,21 @@ def render_settings_eval_tab() -> None:
             "Option 1: PyPDF + Chromadb uses the first PDF extraction pipeline. "
             "This preserves the app's original retrieval behavior."
         )
-    else:
+    elif selected_label == OPTION_2_LABEL:
         st.info(
             "Option 2: Docling + Chromadb uses layout-aware PDF parsing before chunking and embedding. "
             "It may improve retrieval from layout-heavy PDFs, tables, headings, sections, and regulatory documents."
+        )
+    elif selected_label == OPTION_3_LABEL:
+        st.info(
+            "Option 3: Docling + Chroma + BM25 Hybrid Search uses the Docling Chroma collection for vector "
+            "retrieval plus a local BM25 keyword corpus, then fuses rankings before answer generation."
+        )
+    else:
+        st.info(
+            "Option 4: Docling + Chroma + Query Expansion + BM25 Hybrid Search reuses the Docling Chroma "
+            "and BM25 corpus, expands the original question into five retrieval queries, then fuses and deduplicates "
+            "results before answer generation. Latency metrics include the extra expansion LLM call."
         )
 
     st.code(selected_collection, language="text")
@@ -373,7 +388,7 @@ def start_evaluation_process(collection_name: str) -> None:
             "phase": "launching",
             "message": "Launching background LangSmith evaluator.",
             "current": 0,
-            "total": 100,
+            "total": 50,
             "started_at_utc": now,
             "updated_at_utc": now,
         },
@@ -560,10 +575,12 @@ def _render_metric_card(label: str, value: object) -> None:
             border-top: 1px solid rgba(17, 24, 39, 0.08);
             border-right: 1px solid rgba(17, 24, 39, 0.08);
             border-bottom: 1px solid rgba(17, 24, 39, 0.08);
+            box-sizing: border-box;
         ">
             <div style="font-size: 0.86rem; color: #374151; font-weight: 650;">{label}</div>
             <div style="font-size: 1.75rem; color: #111827; font-weight: 750; line-height: 1.25;">{text}</div>
             <div style="font-size: 0.78rem; color: {color}; font-weight: 700;">{band}</div>
+            <div style="font-size: 0.78rem; line-height: 1.2; visibility: hidden;">&nbsp;</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -596,7 +613,7 @@ def _render_latency_card(metrics: dict) -> None:
         ">
             <div style="font-size: 0.86rem; color: #374151; font-weight: 650;">Latency (secs)</div>
             <div style="font-size: 1.35rem; color: #111827; font-weight: 750; line-height: 1.35; white-space: nowrap;">{text}</div>
-            <div style="font-size: 0.78rem; color: #374151; font-weight: 650;">Avg P50 P99</div>
+            <div style="font-size: 0.78rem; color: #374151; font-weight: 650;">Avg | P50 | P99</div>
             <div style="font-size: 0.78rem; color: {color}; font-weight: 700;">{band}</div>
         </div>
         """,
@@ -645,6 +662,15 @@ def _latency_style(p99_latency: float) -> tuple[str, str, str]:
 
 
 def render_about_tab() -> None:
+    settings = get_settings()
+    runtime_model = settings.openai_model if settings.llm_provider == "openai" else settings.gemini_model
+    evaluator_model = settings.eval_judge_model
+    embedding_model = (
+        settings.openai_embedding_model
+        if settings.embedding_provider == "openai"
+        else settings.gemini_embedding_model
+    )
+
     st.subheader("What This App Does")
     st.write(
         "This app answers questions about Cobb County, Georgia building and fire code materials. "
@@ -664,8 +690,10 @@ def render_about_tab() -> None:
     with ingest_col:
         st.markdown("**Index build**")
         st.write(
-            "PDFs under `data/` are indexed into two optional Chroma collections: Option 1 uses the PyPDF-based "
-            "pipeline, and Option 2 uses Docling-enhanced parsing that first exports layout-aware Markdown."
+            "PDFs under `data/` are indexed into four optional retrieval backends: Option 1 uses the PyPDF-based "
+            "pipeline, Option 2 uses Docling-enhanced parsing that first exports layout-aware Markdown, and Option 3 "
+            "uses the Docling Chroma collection with a local BM25 keyword corpus. Option 4 reuses those local indexes "
+            "and adds LLM query expansion at retrieval time."
         )
         st.graphviz_chart(
             """
@@ -678,8 +706,10 @@ def render_about_tab() -> None:
                 structure [label="Docling mode:\\nTOC/bookmark ranges\\nwith overlap fallback"];
                 split [label="Chunk text\\nwith overlap"];
                 embed [label="Create embeddings"];
-                store [label="Persist in Chroma\\nOption 1 or Option 2 collection"];
+                store [label="Persist in Chroma plus BM25 corpus\\nOption 1, Option 2, or Option 3"];
+                expansion [label="Option 4 reuses local hybrid indexes\\nwith query expansion"];
                 pdf -> load -> structure -> split -> embed -> store;
+                store -> expansion;
             }
             """,
             use_container_width=True,
@@ -688,7 +718,7 @@ def render_about_tab() -> None:
         st.markdown("**Question answering**")
         st.write(
             "A lightweight LLM router first classifies whether the question may need local retrieval, web search, or both. "
-            "The selected retrieval backend controls which Chroma collection is searched before the agent evaluates evidence quality."
+            "The selected retrieval backend controls which Chroma collection or local hybrid strategy is searched before the agent evaluates evidence quality."
         )
         st.graphviz_chart(
             """
@@ -699,11 +729,12 @@ def render_about_tab() -> None:
                 q [label="Question"];
                 router [label="LLM router"];
                 retrieve [label="Retrieve local chunks"];
+                expand [label="Option 4:\\nexpand into 5 queries"];
                 judge [label="Judge evidence"];
                 cite [label="Answer with citations"];
                 fallback [label="Search web if needed"];
-                select [label="Selected backend\\nOption 1 or Option 2"];
-                q -> router -> select -> retrieve -> judge -> cite;
+                select [label="Selected backend\\nOption 1, 2, 3, or 4"];
+                q -> router -> select -> expand -> retrieve -> judge -> cite;
                 router -> fallback;
                 judge -> fallback -> cite;
             }
@@ -721,25 +752,33 @@ def render_about_tab() -> None:
         [
             {"Layer": "Frontend", "What it does": "Provides a simple chat UI and displays sources.", "Tech": "Streamlit"},
             {"Layer": "Router", "What it does": "Classifies whether the query may need local docs, web search, or both.", "Tech": "LangChain + LLM"},
-            {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Option 1: PyPDF + Chromadb or Option 2: Docling + Chromadb"},
+            {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Chroma, local BM25 fusion, or query expansion"},
             {"Layer": "Agent logic", "What it does": "Combines router signal, retrieval scores, and evidence checks.", "Tech": "LangChain"},
-            {"Layer": "Generation", "What it does": "Synthesizes a short answer from retrieved evidence only.", "Tech": "OpenAI or Gemini"},
+            {"Layer": "Generation", "What it does": "Synthesizes a short answer from retrieved evidence only.", "Tech": f"{settings.llm_provider}: {runtime_model}"},
             {"Layer": "Deployment", "What it does": "Runs locally, in Docker, or on Streamlit Community Cloud.", "Tech": "Docker + Streamlit"},
         ]
     )
 
+    st.caption(
+        f"Current model configuration: runtime LLM `{runtime_model}`, evaluation judge `{evaluator_model}`, "
+        f"and embedding model `{embedding_model}`. Changing the runtime or judge model does not require rebuilding "
+        "the indexes as long as the embedding model and source documents stay the same."
+    )
+
     st.subheader("Settings and Evaluation")
     st.write(
-        "The Settings & Eval tab lets users choose between two retrieval modes and inspect persisted LangSmith metrics. "
+        "The Settings & Eval tab lets users choose between four retrieval modes and inspect persisted LangSmith metrics. "
         "Option 1: PyPDF + Chromadb uses the first PDF text extraction pipeline. Option 2: Docling + Chromadb uses "
-        "layout-aware parsing before content is embedded into Chroma, which can help with complex layouts, tables, "
-        "headings, sections, and regulatory formatting."
+        "layout-aware parsing before content is embedded into Chroma. Option 3: Docling + Chroma + BM25 Hybrid Search "
+        "uses Docling chunks with local BM25 keyword retrieval and Chroma vector retrieval, which can help compare "
+        "keyword-heavy and semantic retrieval behavior. Option 4 adds LLM query expansion before local hybrid retrieval, which can "
+        "improve recall for underspecified or vocabulary-sensitive code questions at the cost of extra latency."
     )
     st.write(
-        "Evaluation metrics are measured against an independent 100-question golden dataset in "
+        "Evaluation metrics are measured against an independent 50-question golden dataset in "
         "`eval_testset/cobb_county_testset.csv`. The ground truths were generated with Claude 4.6 Sonnet, "
         "separate from the RAG agent's runtime LLM, to reduce self-evaluation bias and test retrieval quality "
-        "against dense, code-focused reference answers."
+        f"against dense, code-focused reference answers. LangSmith evaluator scoring currently uses `{evaluator_model}`."
     )
     
     st.subheader("Guardrails")

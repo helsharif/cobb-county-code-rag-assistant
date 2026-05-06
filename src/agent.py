@@ -26,6 +26,7 @@ class AgentResult:
     sources: list[str]
     used_local: bool
     used_web: bool
+    contexts: list[str] | None = None
     route_reason: str = ""
     route_needs_web: bool = False
     web_search_attempted: bool = False
@@ -51,8 +52,13 @@ class CobbCountyRAGAgent:
                 (
                     "system",
                     "You primarily answer questions about Cobb County, Georgia building and fire codes. "
-                    "Use only the supplied local document excerpts, web search results, and runtime context. "
-                    "If the evidence is missing, conflicting, or not authoritative enough, answer exactly: "
+                    "Use only the supplied local document excerpts, web search results, and runtime context to answer. "
+                    "Do not add thresholds, dates, code sections, exceptions, fees, procedural requirements, or other factual details "
+                    "unless they appear explicitly in the provided context. "
+                    "If the retrieved context only partially answers the question, state what is supported by the context "
+                    "and clearly say what was not found. "
+                    "If the retrieved context does not support a reliable answer, or if the evidence is missing, conflicting, "
+                    "or not authoritative enough, answer exactly: "
                     f"{NO_ANSWER} "
                     "Keep the answer to 2-3 short paragraphs maximum. Include source names or URLs inline when available. "
                     "For simple current-date questions, use the runtime date. Do not provide legal, engineering, or permitting advice.",
@@ -118,6 +124,7 @@ class CobbCountyRAGAgent:
                 sources=[],
                 used_local=False,
                 used_web=False,
+                contexts=[doc.page_content for doc in docs],
                 route_reason=route.reason,
                 route_needs_web=route.needs_web,
                 web_search_attempted=use_web,
@@ -149,6 +156,7 @@ class CobbCountyRAGAgent:
             sources=sources[:8],
             used_local=local_is_sufficient,
             used_web=has_web_results,
+            contexts=[doc.page_content for doc in docs] if local_is_sufficient else [],
             route_reason=route.reason,
             route_needs_web=route.needs_web,
             web_search_attempted=use_web,
