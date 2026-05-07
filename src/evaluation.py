@@ -387,7 +387,7 @@ def _build_langsmith_evaluators() -> list[Callable]:
                     "role": "system",
                     "content": (
                         "You grade faithfulness/groundedness for a technical Cobb County building and fire code RAG app. "
-                        "Use ONLY the ANSWER and CONTEXT provided to you. Do not use outside knowledge, memory, "
+                        "Use ONLY the QUESTION, ANSWER, and CONTEXT provided to you. Do not use outside knowledge, memory, "
                         "or the known correct answer. "
                         "Think step-by-step in the reasoning field before assigning the score. "
                         "Task: "
@@ -401,8 +401,10 @@ def _build_langsmith_evaluators() -> list[Callable]:
                         "5. Do not give credit for values that are plausible, common, or from outside code knowledge. "
                         "6. If the ANSWER states a specific numerical or code requirement that does not appear in the CONTEXT, "
                         "mark that claim unsupported or contradicted. "
-                        "7. If the ANSWER appropriately says it could not find a reliable answer because the CONTEXT lacks "
-                        "the needed fact, treat that as faithful. "
+                        "7. If the ANSWER is the conservative abstention sentence, use the QUESTION to identify the exact "
+                        "fact being requested. If the CONTEXT lacks that exact requested fact, treat the abstention as "
+                        "faithful and score 1.00. If the CONTEXT clearly contains the exact requested fact, treat the "
+                        "abstention as unsupported and score 0.00. "
                         "Compute raw_score = supported_claims / total_claims, then map to the nearest allowed score. "
                         f"{score_scale} "
                         "Do not penalize heavily for minor conversational filler that is not technical. "
@@ -410,7 +412,14 @@ def _build_langsmith_evaluators() -> list[Callable]:
                         "Score 1.00 only when all technical claims are supported and precise."
                     ),
                 },
-                {"role": "user", "content": f"CONTEXT:\n{facts}\n\nANSWER:\n{outputs.get('answer', '')}"},
+                {
+                    "role": "user",
+                    "content": (
+                        f"QUESTION:\n{inputs.get('question', '')}\n\n"
+                        f"CONTEXT:\n{facts}\n\n"
+                        f"ANSWER:\n{outputs.get('answer', '')}"
+                    ),
+                },
             ],
             "faithfulness",
             settings,

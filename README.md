@@ -223,6 +223,25 @@ Example retrieval test:
 | What is today's date? | Runtime/web fallback | Answers using runtime date context |
 | What are the currently adopted construction codes for Cobb County building permits? | Local + web verification | Uses local documents and Cobb County/state web sources |
 
+### Retrieval Method Performance Comparison
+
+The final LangSmith evaluation results below come from the saved JSON files in `eval_results/`, using the fixed 50-question golden dataset. Quality metrics use the five-point evaluator scale aggregated across the dataset, where higher is better. Latency is measured in seconds, where lower is better.
+
+| Option | Method | Answer Relevance | Context Precision | Context Recall | Faithfulness | Latency: Avg (secs) | Latency: P50 | Latency: P99 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| 1 | PyPDF + Chromadb | 0.695 | 0.695 | 0.610 | 0.940 | 15.3 | 10.4 | 108.8 |
+| 2 | Docling + Chromadb | 0.625 | 0.650 | 0.615 | 0.930 | 13.6 | 12.2 | 36.1 |
+| 3 | Docling + Chroma + BM25 Hybrid Search | **0.725** | **0.765** | **0.720** | 0.955 | 15.4 | 11.4 | 69.0 |
+| 4 | Docling + Query Expansion + BM25 Hybrid Search | **0.730** | 0.755 | 0.645 | **0.965** | 23.4 | 21.3 | 50.2 |
+
+Major findings:
+
+- **Best overall retrieval quality:** Option 3 is the strongest balanced configuration. Adding BM25 keyword search to Docling Chroma improves context precision and recall, which matters for code questions containing exact phrases, section references, thresholds, fees, and procedural language.
+- **Highest faithfulness:** Option 4 has the highest faithfulness score at 0.965 and the highest answer relevance at 0.730, but the query expansion step increases median latency substantially and does not improve context recall versus Option 3.
+- **Best baseline:** Option 1 remains a credible PyPDF/Chroma baseline with strong faithfulness at 0.940 and the fastest median latency at 10.4 seconds, but it trails hybrid retrieval on context recall.
+- **Docling alone is not enough:** Option 2 improves document parsing quality but, by itself, does not outperform the PyPDF baseline on answer relevance or context precision. The biggest gain comes when Docling parsing is paired with BM25 hybrid retrieval.
+- **Recommended default for portfolio demos:** Option 3 is the best practical default because it gives the strongest retrieval metrics without the extra query-expansion latency of Option 4.
+
 ---
 
 ## Key Insights
@@ -231,6 +250,7 @@ Example retrieval test:
 - Local retrieval alone is not enough for "current" or "effective date" questions because codes change.
 - Keeping file and page metadata is essential for user trust.
 - Layout-aware parsing can improve retrieval when code PDFs contain headings, tables, or multi-column formatting.
+- Hybrid retrieval outperformed either vector-only strategy in the final evaluation, especially on context precision and context recall.
 - Deterministic context expansion reduces false refusals when a small retrieved chunk lands just before the relevant checklist item, bullet value, or table row.
 - A conservative fallback response is safer than forcing an answer from weak or merely related evidence.
 - Exact-evidence gating improves faithfulness by refusing numeric, code, inspection, permit, and procedural answers unless the supporting value or requirement appears in the supplied context.
@@ -559,10 +579,6 @@ The four quality metrics use a five-point LangSmith evaluator scale rather than 
 | 1.00 | Fully correct, well-supported, and technically precise |
 
 The evaluator prompts require step-by-step reasoning before assigning a score. They are intentionally strict with technical building and fire code details such as dimensions, dates, fire ratings, fees, code sections, and procedural requirements, while allowing equivalent semantic phrasing.
-
-![PyPDF vs Docling RAG evaluation metrics](assets/pypdf-vs-docling-rag-eval-metrics.png)
-
-**Figure: PyPDF vs Docling retrieval evaluation on the golden dataset.** Both parsing backends achieve strong faithfulness and answer relevance, with Docling showing modest gains across all reported metrics, including context precision and context recall.
 
 Evaluation is never triggered automatically on app launch. Use **Run Evaluation Metrics** or **Re-run Evaluation** from the dashboard. The app starts evaluation in a background Python process, writes a lightweight status file under `eval_status/`, and keeps the Streamlit chat UI responsive while LangSmith runs. On Windows, the app uses `pythonw.exe` when available so the evaluator does not open a blank console window. The dashboard shows the current phase, question progress, elapsed time, and automatically polls for updated status/results every 20 seconds while an evaluation is running. A **Refresh now** button is also available as a manual fallback.
 
