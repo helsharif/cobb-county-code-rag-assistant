@@ -1,0 +1,81 @@
+Question:
+What is the minimum burial depth for underground fire main piping in Cobb County?
+
+Evidence:
+[Local 1] data\raw\cobb_county_fire\Private Hydrant Guide 2023.pdf | relevance=0.34
+Bill Johnson Fire Chief
+
+Carl Crumbley Deputy Fire Chief
+
+1595 County Services Pkwy. Marietta, GA 30008-4021 www.cobbfmo.org
+
+<!-- image -->
+
+## Cobb County Fire &amp; Emergency Services
+
+Nicholas Dawe Fire Marshal
+
+fmoinspections@cobbcounty.org  fax: (770) 528-8320
+
+phone: (770) 528-8310
+
+## Private Fire Hydrant Guide
+
+EFFECTIVE DATE: 4/1/09
+
+REVISED: 12/23/16; 2/6/20; 8/28/23
+
+ISSUED BY:  Division Chief / Fire Marshal Nicholas Dawe                                                          Page 1 of 1
+
+SUBJECT:  To provide guidance to FMO personnel and Hydrant Contractors
+
+A Private Fire Hydrant is defined by the National Fire Protection Association (NFPA 25) as the pipe and its appurtenances located on the private property between a source of water and the base of the riser.  The private  service  main  begins  at  a  point  designated  by  the  public  water  utility,  usually  at  a  manually operated valve near the property line (master meter).
+
+All inspections, maintenance, and testing shall be performed by a qualified company on file with the Cobb County Fire Marshal's Office.
+
+Accurate records of all inspections, maintenance, and testing shall be uploaded into Mobile eyes for review by the Cobb County Fire Marshal's Office.
+
+## Frequency of service shall be:
+
+- Inspection and maintenance performed annually
+- Measured flow test performed every 3 years
+
+## Visibility and access requirements shall be:
+
+- Hydrants in Cobb County shall be painted silver, as needed.  Orange reflective tape shall be used on all  private  hydrants.   The  reflective  tape  shall  be  wrappe
+
+[Local 2] data\raw\cobb_county_fire\Common_Code_Violations.pdf | relevance=0.33
+## Fire Codes in Georgia and Cobb County
+
+Title  25  Chapter  2  O.C.G.A.  (Official  Code  of  Georgia  Annotated),  known  as 'Regulation of Fire and Other Hazards to Persons and Property Generally', allows the Safety  Fire  Commissioner  to  adopt  rules  and  regulations  to  promote  fire  safety. These  rules  and  regulations  are  adopted  under  Chapter  120-3-3  'Rules  and Regulations of the Safety Fire Commissioner' and known as 'Rules and Regulations for  the  State  Minimum  Fire  Safety  Standards.'    Certain  NFPA  standards  and  the Standard  Fire  Prevention  Code  are  adopted  under  120-3-3.    According  to  25-2-4 O.C.G.A., these codes have the 'force and effect of law.'  For enforcement purposes, Cobb County adopts these state minimum standards by reference in the Cobb County Code  54-54.    The  Cobb  County  Fire  Marshal's  Office  enforces  the  state  minimum standards and, according to Section 25-2-12 O.C.G.A., performs the following duties:
+
+1.  Conduct fire safety inspections of existing buildings and structures
+2.  Review plans for proposed buildings.
+3.  Issue permanent and temporary certificates of occupancy.
+
+## Common Code Violations
+
+1.  Violation:  ADDRESS OR SUITE NUMBER NOT POSTED
+
+Applicable Code:  Section 106-2(b), Cobb County Code
+
+(b) Each dwelling unit and place of business shall have posted and maintained in a  prominent  place  on  the  property,  legible  from  the  street  providing  public access, the address of the dwelling unit or place of business as follows: (1)    For  residences,  in  figures  at  least  three  inch
+
+[Local 3] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.32
+(Ord.  of 3-27-90; Code 1977, § 3-6-110; Ord.  of 11-1495; Ord. of 7-27-99 (eff. 10-1-99); Ord. of 1-25-00; Ord. of  1-23-01;  Ord.  of  7-10-01;  Ord.  of  4-13-04;  Ord.  of 2-27-07;  Amd.  of  2-23-10;  Ord.  of  7-24-12;  Amd.  of 2-9-21; Amd.  of 10-24-23)
+
+State  law  referenceMinimum  standards,  O.C.G.A. § 12-7-17.
+
+## Sec.  50-76.  Application; plan requirements; permit process.
+
+(a) General. The  property  owner,  developer  and designated  planners  and  engineers  shall  design  and review before submittal the general development plans. Cobb  County  shall  review  the  tract  to  be  developed and the area surrounding it.  They shall consult the zoning ordinance, storm water management ordinance, subdivision  ordinance,  flood  damage  prevention ordinance,  this  article,  and  any  other  ordinances, rules,  regulations  or  permits,  which  regulate  the development of land within the jurisdictional boundaries of Cobb County. However, the owner and/or operator are the only parties who may obtain a permit.
+
+- (b) Application requirements.
+- (1) No person shall conduct any land disturbing activity within the confines of the unincorporated areas of Cobb County without first obtaining a permit, where required, from the  Cobb  County  Community  Development Agency to perform such activity and providing a copy of the notice of intent submitted to the  Georgia  EPD,  if applicable. A  land disturbance permit for clearing and grading projects may only be obtained if such projects are part of a complete site/project plan review and approval (allowing for clearing and
+
+[Local 4] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.31
+- d. All uses are subject to chapter 110, pertaining to subdivisions.
+- e. It is found and declared that outside storage on properties within unincorporated Cobb County is a health risk and undesirable in that it provides harborage for rodents and insects, lowers property values, and constitutes a public nuisance; therefore, no outside storage is permitted, excluding firewood and lawn furnishings, unless otherwise allowed in this article.
+- f. Maximum impervious surface shall not exceed 35 percent. Pervious pavement system and/or green roofs are considered 60 percent effective impervious and will be calculated as such when determining maximum impervious surface. In no case shall total pavement and roof areas (pervious and impervious) exceed 40 percent. An undisturbed buffer equal to the required rear yard setback for this zoning district sh
+
+Enough evidence?

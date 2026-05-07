@@ -15,7 +15,7 @@ import numpy as np
 import pandas as pd
 from langchain_openai import ChatOpenAI
 from langsmith import Client, traceable
-from typing_extensions import Annotated, TypedDict
+from pydantic import BaseModel, Field
 
 from src.agent import NO_ANSWER, CobbCountyRAGAgent
 from src.config import (
@@ -62,9 +62,24 @@ CONFIG_LABELS = {
 ProgressCallback = Callable[[dict[str, Any]], None]
 
 
-class BinaryGrade(TypedDict):
-    explanation: Annotated[str, ..., "Briefly explain the score."]
-    score: Annotated[bool, ..., "True if the criterion is satisfied; otherwise false."]
+class ScoredGrade(BaseModel):
+    """Five-point evaluator grade returned by the LangSmith judge model."""
+
+    reasoning: str = Field(
+        ...,
+        description=(
+            "Step-by-step analysis explaining the evidence, partial credit, and final score. "
+            "Be strict with technical building/fire-code facts such as numbers, dates, dimensions, "
+            "fees, fire ratings, code sections, and procedural requirements. "
+            "The final score must be one of: 0.0, 0.25, 0.5, 0.75, or 1.0."
+        ),
+    )
+    score: float = Field(
+        ...,
+        ge=0.0,
+        le=1.0,
+        description="Five-point score. Must be one of: 0.0, 0.25, 0.5, 0.75, or 1.0.",
+    )
 
 
 @dataclass(frozen=True)
@@ -348,11 +363,20 @@ def run_langsmith_evaluation(
 def _build_langsmith_evaluators() -> list[Callable]:
     settings = get_settings()
     grader = ChatOpenAI(model=settings.eval_judge_model, temperature=0)
+    score_scale = (
+        "Use only this five-point score scale: "
+        "0.00 = no meaningful support, irrelevant, or unusable; "
+        "0.25 = minimal support with major missing or incorrect facts; "
+        "0.50 = partially correct with important gaps or mixed evidence; "
+        "0.75 = mostly correct with minor omissions, noise, or wording issues; "
+        "1.00 = fully correct, well-supported, and technically precise. "
+        "Do not output scores outside 0.00, 0.25, 0.50, 0.75, or 1.00."
+    )
 
-    faithfulness_llm = grader.with_structured_output(BinaryGrade, method="json_schema", strict=True)
-    answer_relevance_llm = grader.with_structured_output(BinaryGrade, method="json_schema", strict=True)
-    context_precision_llm = grader.with_structured_output(BinaryGrade, method="json_schema", strict=True)
-    context_recall_llm = grader.with_structured_output(BinaryGrade, method="json_schema", strict=True)
+    faithfulness_llm = grader.with_structured_output(ScoredGrade, method="json_schema", strict=True)
+    answer_relevance_llm = grader.with_structured_output(ScoredGrade, method="json_schema", strict=True)
+    context_precision_llm = grader.with_structured_output(ScoredGrade, method="json_schema", strict=True)
+    context_recall_llm = grader.with_structured_output(ScoredGrade, method="json_schema", strict=True)
 
     def faithfulness(inputs: dict, outputs: dict) -> dict:
         facts = _contexts_to_text(outputs)
@@ -362,11 +386,31 @@ def _build_langsmith_evaluators() -> list[Callable]:
                 {
                     "role": "system",
                     "content": (
-                        "You grade whether an answer is faithful to retrieved context. "
-                        "Return true only if the answer is supported by the facts and does not add unsupported claims."
+                        "You grade faithfulness/groundedness for a technical Cobb County building and fire code RAG app. "
+                        "Use ONLY the ANSWER and CONTEXT provided to you. Do not use outside knowledge, memory, "
+                        "or the known correct answer. "
+                        "Think step-by-step in the reasoning field before assigning the score. "
+                        "Task: "
+                        "1. Extract each factual claim from the ANSWER. "
+                        "2. For each claim, decide whether it is supported, unsupported, or contradicted. "
+                        "A supported claim is directly stated in the CONTEXT or is a faithful paraphrase. "
+                        "An unsupported claim is not found in the CONTEXT. A contradicted claim conflicts with the CONTEXT. "
+                        "3. Be extremely strict for numerical values, dimensions, dates, fire ratings, fees, code sections, "
+                        "exceptions, permit requirements, and inspection procedures. "
+                        "4. A numerical value is supported only if the same value appears in the CONTEXT and refers to the same subject. "
+                        "5. Do not give credit for values that are plausible, common, or from outside code knowledge. "
+                        "6. If the ANSWER states a specific numerical or code requirement that does not appear in the CONTEXT, "
+                        "mark that claim unsupported or contradicted. "
+                        "7. If the ANSWER appropriately says it could not find a reliable answer because the CONTEXT lacks "
+                        "the needed fact, treat that as faithful. "
+                        "Compute raw_score = supported_claims / total_claims, then map to the nearest allowed score. "
+                        f"{score_scale} "
+                        "Do not penalize heavily for minor conversational filler that is not technical. "
+                        "Score 0.00 when no meaningful factual claims are supported. "
+                        "Score 1.00 only when all technical claims are supported and precise."
                     ),
                 },
-                {"role": "user", "content": f"FACTS:\n{facts}\n\nANSWER:\n{outputs.get('answer', '')}"},
+                {"role": "user", "content": f"CONTEXT:\n{facts}\n\nANSWER:\n{outputs.get('answer', '')}"},
             ],
             "faithfulness",
             settings,
@@ -380,8 +424,16 @@ def _build_langsmith_evaluators() -> list[Callable]:
                 {
                     "role": "system",
                     "content": (
-                        "You grade whether an answer directly addresses the user's question. "
-                        "Return true if the answer is relevant and helpful, even if conservative."
+                        "You grade answer relevancy for a technical Cobb County building and fire code RAG app. "
+                        "Think step-by-step in the reasoning field before assigning the score. "
+                        "Evaluate how well the ANSWER addresses the user's intent in the QUESTION. "
+                        "Score 1.0 for a perfect, concise answer that directly satisfies the question. "
+                        "Score 0.75 for answers that are helpful but slightly verbose, incomplete, "
+                        "or miss a minor constraint. Use lower buckets for larger gaps. "
+                        f"{score_scale} "
+                        "Score 0.0 only if the answer is completely irrelevant, "
+                        "hallucinated, or fails to address the question. Be strict with incorrect technical details, "
+                        "but flexible with semantic phrasing."
                     ),
                 },
                 {
@@ -402,8 +454,13 @@ def _build_langsmith_evaluators() -> list[Callable]:
                 {
                     "role": "system",
                     "content": (
-                        "You grade whether the retrieved contexts are relevant to the question. "
-                        "Return true if most retrieved context is useful for answering the question."
+                        "You grade context precision, also called signal-to-noise, for a technical Cobb County building "
+                        "and fire code RAG app. Think step-by-step in the reasoning field before assigning the score. "
+                        "Evaluate the retrieved CONTEXTS against the QUESTION. Estimate the ratio of relevant chunks "
+                        "or relevant information to total retrieved chunks or information. Reward cases where the "
+                        "needed evidence is present even if some unrelated text is also included. Do not require every "
+                        f"chunk to be perfect. {score_scale} Be strict about whether retrieved passages actually support technical "
+                        "numbers, dates, code sections, fees, dimensions, fire ratings, and procedures requested."
                     ),
                 },
                 {"role": "user", "content": f"QUESTION:\n{inputs.get('question', '')}\n\nCONTEXTS:\n{facts}"},
@@ -421,8 +478,14 @@ def _build_langsmith_evaluators() -> list[Callable]:
                 {
                     "role": "system",
                     "content": (
-                        "You grade whether retrieved contexts contain the information needed to support "
-                        "the reference answer. Return true if the contexts cover the important facts."
+                        "You grade context recall/coverage for a technical Cobb County building and fire code RAG app. "
+                        "Think step-by-step in the reasoning field before assigning the score. "
+                        "Compare the CONTEXTS against the REFERENCE ANSWER. Identify the key facts required to satisfy "
+                        "the reference answer, then score as required facts found in context divided by total required facts. "
+                        f"{score_scale} "
+                        "Be extremely strict with numerical values, dates, dimensions, fire ratings, fees, code sections, "
+                        "exceptions, and procedural requirements. Flexible semantic phrasing is acceptable only when "
+                        "the technical meaning is preserved."
                     ),
                 },
                 {
@@ -506,16 +569,43 @@ def _is_retryable_rate_limit(exc: Exception) -> bool:
     )
 
 
-def _grade_to_feedback(key: str, grade: dict) -> dict:
-    score = 1.0 if grade.get("score") else 0.0
-    return {"key": key, "score": score, "comment": grade.get("explanation", "")}
+def _grade_to_feedback(key: str, grade: ScoredGrade | dict) -> dict:
+    if isinstance(grade, BaseModel):
+        raw_score = getattr(grade, "score", 0.0)
+        comment = getattr(grade, "reasoning", "")
+    else:
+        raw_score = grade.get("score", 0.0)
+        comment = grade.get("reasoning") or grade.get("explanation", "")
+    score = _quantize_score(raw_score)
+    return {"key": key, "score": score, "comment": comment}
 
 
-def _contexts_to_text(outputs: dict, limit: int = 8000) -> str:
+def _quantize_score(value: Any) -> float:
+    """Snap evaluator scores to the five-point scale used by the dashboard."""
+
+    allowed_scores = (0.0, 0.25, 0.5, 0.75, 1.0)
+    try:
+        numeric_score = min(max(float(value), 0.0), 1.0)
+    except Exception:
+        return 0.0
+    return min(allowed_scores, key=lambda allowed: abs(allowed - numeric_score))
+
+
+def _contexts_to_text(outputs: dict, limit: int = 30000) -> str:
     contexts = outputs.get("contexts") or []
     if not contexts:
         return "No retrieved context."
-    return "\n\n".join(str(context) for context in contexts)[:limit]
+    sources = outputs.get("sources") or []
+    blocks: list[str] = []
+    for index, context in enumerate(contexts, start=1):
+        source_label = ""
+        if index - 1 < len(sources):
+            source_label = str(sources[index - 1] or "").strip()
+        header = f"[Local {index}]"
+        if source_label:
+            header = f"{header} {source_label}"
+        blocks.append(f"{header}\n{context}")
+    return "\n\n".join(blocks)[:limit]
 
 
 def _testset_hash(testset: pd.DataFrame) -> str:

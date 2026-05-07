@@ -1,0 +1,143 @@
+Runtime context:
+Current date: Wednesday, May 06, 2026
+
+Question:
+What are the blasting permit escrow requirements in Cobb County?
+
+Local document evidence:
+[Local 1] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.68
+(d) Standard  conditions. The  following  provisions constitute the standard conditions applicable to develop­ ment blasting permits:
+
+- (1) County  staff  has  the  right  to  enter  upon  the property  and  complete  all  necessary  inspec­ tions related to the blasting activity or  in response to complaints resulting from the blasting activity.
+
+- (2) Hours of blasting activity: 10:00 a.m. through 4:00 p.m., Monday through Friday. No weekends, no state holidays, and no federal holidays.
+- (3) The permit is issued to the user identified in the application and allows the blaster identified in the application to conduct the blasting activity. If the blaster identified in the application changes subsequent to the application submittal or after the permit is issued, then the user must notify the County as to the name, address, contact information and registration requirements of the replacement blaster prior to detonation of blasts by the replacement blaster.
+- (4) The responsible user, blaster and engineer or engineer's designee, identified in the permit application, must be on site during all phases of the physical blast preparation (drilling holes, etc.) and detonation activity.
+- (5) Where required by the director, no detonation of explosives (blasting) may occur without appropriate county staff on site.
+- (6) Notice of the exact blast time and date must be provided to the Cobb County Department of Public Safety one hour prior to the blast.
+- (7) A blasting permit is issued to the user and is not transferable.
+- (8) A record of each blast must be maintained in accordance
+
+[Local 2] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.60
+(c) Escrow  agreement. Prior  to  issuance  of  the blasting  permit,  the  applicant  may  be  required  to deliver  an  executed  escrow  agreement,  acceptable  to the  county  attorney's  office,  and  fully  funded  with cash in the amount of $50,000.00.
+
+(d) The  fire  marshal  may  prescribe  any  forms required for the administration of this article. (Ord. of 2-27-07; Amd. of 2-24-15)
+
+## Sec. 18-360. Limitations on blasting intensity.
+
+(a) The  director has the discretion to  require monitoring  of  intensity  levels  at  alternate  locations not  under  the  ownership  or  control  of  the  developer, user, or blaster if such is  warranted  based  upon complaints  received  by  the  county  after  the  blasting activity begins. These alternate locations may be inside or outside the overall development project boundary.
+
+(b) Blast intensity  may  not  exceed  any  of  the following limits:
+
+- (1) Blasting vibration-frequency limits: The velocity/shock wave of any blast shall not exceed 2" PPV  at  40  Hz  or  greater.  At  lower  frequen­ cies, the county shall use the established limits  in  the  vibration  criteria  as  presented  in the U.S. Bureau of Mines RI 8507, as may be amended from time to time.
+- (2) Air  blast  limits: 140db  or  as  defined  by  the U.S.  Bureau  of  Mines  RI  8485,  as  may  be amended from time to time.
+
+(Ord. of 2-27-07; Amd. of 2-23-16)
+
+## Sec. 18-361. Blasting permit issuance; standard permit conditions.
+
+(a) Blasting permit required. It is  unlawful  to conduct  development  blasting  activity,  including  test blasting, within
+
+[Local 3] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.54
+- (2) The application for a land disturbance permit shall be submitted to the Cobb County Community Development Agency and must include the  applicant's  erosion,  sedimentation  and pollution  control  plan  with  supporting  data, as  necessary.  Said  plans  shall  include,  as  a minimum, the data specified in subsection (c) of  this  section.  Erosion,  sedimentation  and pollution control plans, together with supporting data, must demonstrate affirmatively that the land disturbing activity proposed will be carried out in such a manner that the provisions  of  section  50-75  of  this  article  will  be met.  Applications  for  a  permit  will  not  be accepted unless accompanied by a copy of the applicant's erosion, sedimentation and pollution  control  plans  and  by  such  supportive data  as  will  affirmatively  demonstrate  that the land-disturbing activity proposed will be carried out in such a manner that the minimum requirements  shall  be  met.  Maps,  drawings and  supportive  computations  shall  bear  the signature  and  seal  of  the  certified  design professional.  All applications shall contain a certification stating that the plan preparer or the designee thereof visited the site prior to creation of the plan in accordance with EPD Rule 391-3-7-.10.
+- (3) In addition to the local permitting fees, fees will also be assessed pursuant to paragraph (5) subsection (a) of O.C.G.A. 12-5-23, provided that  such  fees  shall  not  exceed  $80.00  per acre  of  land-disturbing  activity,  and  these fees  shall  be  calculated  and  paid  by  the primary  permi
+
+[Local 4] data\raw\cobb_county_fire\Development Blasting Permit Application 2025.pdf | relevance=0.51
+(Exact location to be used)
+
+Site Permit Number \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_ Parcel Number \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
+
+To be transported in \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
+
+(Description of the vehicle)
+
+Dates Requested: From \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_   To \_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_\_
+
+(MAXIMUM 30 DAYS)
+
+I certify that:  (1) I am familiar with the requirements of the Official Code of Cobb County, Article XIII: Development Blasting and Chapter 120-3-10, and that I will comply with all requirements of same;  (2)  If transportation is involved; the vehicle described above is in good mechanical condition;  (3) I understand that storage of explosives is not authorized under this permit, and all explosives shall be used up or returned to the vendor for safe storage in an approved magazine; (4) My company agrees to provide your office with copies of the below-requested documents to be kept on file and updated as needed.
+
+Any close proximity blasting?
+
+- [ ]  No
+
+- [ ]  Yes
+
+Will this Blasting Permit disrupt air or vehicle traffic in any manner?
+
+- [ ]  No
+
+- [ ]  Yes
+
+*** You must call 770-499-3911 before any blasting and give the exact time and date of blasting. *** Prior approval must be obtained from Joel Cade at the Cobb County Bomb Squad before the Fire M arshal's Office will issue the
+
+[Local 5] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.50
+Blasting  permit  applications  will  be  reviewed  by the director. County  staff may  prepare  a written recommendation,  including  proposed  permit  condi­ tions,  to  accompany  the  permit  application  as  part  of the package provided to the director for action on the permit  application.  The  conditions  set  forth  in  this article  will  be  considered  the  minimum  conditions applicable to blasting permit approval.
+
+As  part  of  the  permit  review  process,  the  director will  consider,  at  minimum,  the  compatibility  of  the proposed  blasting  activity  with  the  surrounding  com­ munity, and the proximity of schools, churches, health care  facilities  and  public  infrastructure  facilities  to the  blast  site.  A  blasting  permit  may  be  denied  if  the director  believes  approval  of  the  proposed  blasting activity  is  not  in  the  best  interest  of  the  public  health, safety  and  welfare  of  County  citizens.  Denial  of  a blasting permit application will include a written explanation for the denial.
+
+(c) Permit denial. The Department of Transporta­ tion, Cobb County Water System, or an entity holding a  utility  franchise  within  the  area  affected  by  the proposed  blasting  activity  has  the  right  to  request denial  of  a  blasting  permit  application  in  order  to afford  reasonable  protection  of  public  infrastructure or  facilities.  The  reason  for  the  request  for  denial must be specifically stated in writing.
+
+(d) Standard  conditions. The  following  provisions constitute the standard conditions applicable
+
+[Local 6] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.49
+Infrastructure structure means a facility or structure, existing  or  under  construction,  that  is  used  to  support use  of  habitable  structure  or  community  growth.  It includes roadways, water and sewer lines, utility poles, equipment boxes, pump stations, drainage facili­ ties, water management  facilities, bridges, tunnels, and  other  similar  infrastructure  related  facilities  and structures.
+
+Structure means a building or facility that is existing or under construction. It includes both infrastructure  structures  and  habitable  structures. (Ord. of 2-27-07; Amd. of 2-24-15)
+
+## Sec.  18-359.  Blasting  permit  application  require­ ments.
+
+(a) Application. Only  a  state  registered  user  with  a "Blaster  Certification  Card"  as  required  by  Chapter 120-3-10  of  the  Rules  and  Regulations  of  the  Safety Fire Commissioner of Georgia and O.C.G.A. §§ 25-2-4, 25-2-17  and  25-8-9  may  apply  for  a  blasting  permit. The application must include the following:
+
+- (1) Name,  address  and  contact  information  for the following individuals:
+- a. User (the permit applicant);
+- b. Blaster;
+- c. Developer;
+- d. Property owner;
+- e. Engineer  creating  or  corroborating  the blasting plan
+- f. Seismograph operator; and
+- g. Person  to  conduct  pre-blast  and  post­ blast surveys.
+- (2) State  registrations  for  the  user  and  blaster responsible for proposed  activity,  including "Blaster  Certification  Card"  as  required  by Chapter  120-3-10  of  the  Rules  and  Regula­ tions of the Safety Fire Commissioner of Georgia  and  per  O.C.G.A.  §§  25
+
+[Local 7] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.47
+(Ord.  of 3-27-90; Code 1977, § 3-6-110; Ord.  of 11-1495; Ord. of 7-27-99 (eff. 10-1-99); Ord. of 1-25-00; Ord. of  1-23-01;  Ord.  of  7-10-01;  Ord.  of  4-13-04;  Ord.  of 2-27-07;  Amd.  of  2-23-10;  Ord.  of  7-24-12;  Amd.  of 2-9-21; Amd.  of 10-24-23)
+
+State  law  referenceMinimum  standards,  O.C.G.A. § 12-7-17.
+
+## Sec.  50-76.  Application; plan requirements; permit process.
+
+(a) General. The  property  owner,  developer  and designated  planners  and  engineers  shall  design  and review before submittal the general development plans. Cobb  County  shall  review  the  tract  to  be  developed and the area surrounding it.  They shall consult the zoning ordinance, storm water management ordinance, subdivision  ordinance,  flood  damage  prevention ordinance,  this  article,  and  any  other  ordinances, rules,  regulations  or  permits,  which  regulate  the development of land within the jurisdictional boundaries of Cobb County. However, the owner and/or operator are the only parties who may obtain a permit.
+
+- (b) Application requirements.
+- (1) No person shall conduct any land disturbing activity within the confines of the unincorporated areas of Cobb County without first obtaining a permit, where required, from the  Cobb  County  Community  Development Agency to perform such activity and providing a copy of the notice of intent submitted to the  Georgia  EPD,  if applicable. A  land disturbance permit for clearing and grading projects may only be obtained if such projects are part of a complete site/project plan review and approval (allowing for clearing and
+
+[Local 8] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.44
+measures  will  be  installed  if  deemed necessary by on-site inspection. On-site inspectors  may  add  items  to  plans  as necessary. On-site inspectors may delete items from plans subject to approval by the director of Cobb County Community Development or his/her designee. "
+
+## (4) Permits.
+
+- a. Permits issuance or denial.  A permit is issued after Cobb County has determined that the plan for erosion and sedimentation control complies with the requirements of section 50-75, and after Cobb County  has  affirmatively  determined that  the  plan  complies  with  all  other development  ordinances,  rules  and regulations in effect within the unincorporated  areas  of  the  county. Permits will be issued or denied as soon as  practical  after  the  permit  is  filed with Cobb County, but in any event not later than 45 days after receipt by Cobb County  of  a completed  application; providing  variances  and  bonding  are obtained, where  necessary  and  all applicable fees have been paid prior to permit issuance. The permit shall include conditions under which the activity may be undertaken.  If the permit is denied, the reasons  for  the denial  shall be furnished to the applicant.
+- b. No permit shall be issued unless Cobb County  has  affirmatively  determined that the plan is in compliance with this ordinance,  any  variances  required  by section  50-75(c)(15),  (16)  and  (17)  are obtained, bonding requirements, if necessary, as per 50-76(b)(6) are met and all ordinances and rules and regulations in effect within the jurisdictional boundaries of Cobb County are met
+
+[Local 9] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.44
+development  or  sale  unless  the  planned disturbance for such construction is equal to or greater than five acres.
+
+- (3) Failure to properly design, install or maintain best management practices shall constitute a violation of any land disturbing permit issued by  Cobb  County  or  of  any  state  general permit  issued  by  the  division  pursuant  to O.C.G.A. § 12-5-30(f), the Georgia Water Quality  Control  Act,  for  each  day  on  which  such failure occurs.
+- (4) The Director of EPD may require, in accordance with regulations adopted by the board, reasonable and prudent monitoring of the turbidity level of receiving waters into which discharges from land disturbing activities occur to verify that  the  minimum  requirements  in  subsection (b)(2) are being met.
+- (5) Cobb County may set more stringent buffer requirements than stated in (c)(15), pursuant to O.C.G.A.  § 12-7-6 (c).
+
+(c)  The rules and regulations, ordinances, or resolutions adopted pursuant to O.C.G.A. § 12-7-1 et seq. for the  purpose  of  governing  land-disturbing  activities shall  require,  as  a  minimum,  protections  at  least  as stringent as the state general permit and follow as a minimum best management practices, including sound conservation and engineering practices to prevent and minimize erosion and resulting sedimentation which are consistent with and no less stringent than, those practices  contained  in  the  Manual  for  Erosion  and Sediment Control in Georgia published by the Georgia Soil and Water Conservation Commission as of January 1 of the year in which the land disturbing
+
+[Local 10] data\raw\cobb_municode\Cobb County, GA Code of Ordinances.pdf | relevance=0.43
+(Ord.  of 3-27-90; Code 1977, § 3-6-111; Ord.  of 11-1495; Ord. of 7-27-99 (eff. 10-1-99); Ord. of 1-25-00; Ord. of  1-23-01; Ord.  of 4-13-04; Ord.  of 2-27-07; Amd.  of 2-23-10;  Amd.  of  2-9-21;  Amd.  of  2-8-22;  Amd.  of 10-24-23)
+
+State law referencePermits for land disturbing activities, O.C.G.A.  §§ 12-7-7, 12-7-9.
+
+## Sec.  50-77.  Inspections.
+
+(a)  Cobb County will periodically inspect the sites of  land  disturbing  activities  for  which  permits  have been  issued  to  determine  if  the  activities  are  being conducted  in  accordance  with  the  plan  and  if  the measures required in the plan are effective in controlling  erosion  and  sedimentation.  Also,  Cobb  County shall regulate both primary and secondary permittees as such terms are defined in the state general permit. Primary permittees shall be responsible for installation  and  maintenance of best management practices where the primary permittee is conducting land disturbing activities. Secondary permittees shall be responsible for installation and maintenance of best management practices where the secondary permittee is conducting land  disturbing  activities.  Tertiary  permittees  shall be responsible for installation and maintenance where the  tertiary  permittee  is  conducting  land-disturbing activities.  If, through inspection, it is deemed that a person engaged in land disturbing activities as defined herein has failed to  comply  with  the  approved  plan, with permit conditions, or with the provisions of this article, a written notice to comply shall be served upon that person.  The
+
+Web evidence:
+No web evidence used.
+
+Grounded answer:
