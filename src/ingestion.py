@@ -688,7 +688,17 @@ def build_vectorstore(rebuild: bool = False, pipeline: str = "pypdf_chroma") -> 
     settings = get_settings()
     slugs = normalize_pipeline_slugs(pipeline)
     log_effective_ingestion_settings(settings, slugs)
-    chroma_full_rebuilt = rebuild and {"pypdf_chroma", "docling_chroma"}.issubset(set(slugs))
+    slugs_set = set(slugs)
+    includes_pypdf_collection = "pypdf_chroma" in slugs_set
+    includes_docling_collection = bool(
+        slugs_set
+        & {
+            "docling_chroma",
+            "docling_chroma_bm25_hybrid",
+            "docling_chroma_bm25_expansion",
+        }
+    )
+    chroma_full_rebuilt = rebuild and includes_pypdf_collection and includes_docling_collection
     if chroma_full_rebuilt and settings.vectorstore_dir.exists():
         logger.info("Rebuilding all vectorstore collections at %s.", settings.vectorstore_dir)
         shutil.rmtree(settings.vectorstore_dir)
