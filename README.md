@@ -121,7 +121,7 @@ Key steps:
 - Query routing: A lightweight LLM classifier flags whether the query needs local retrieval, web search, or both
 - Evaluation: LangSmith experiment scores persisted per vector store for faithfulness, answer relevance, context precision, and context recall
 - Retrieval scoring: User questions are matched against indexed chunks
-- Context expansion: Retrieved chunks are deterministically expanded to page/range context or neighboring chunks before evidence checks
+- Context expansion: Retrieved chunks are deterministically expanded with same-document neighboring chunks before evidence checks
 - Evidence thresholding: Weak retrieval triggers fallback web search
 - Strict evidence gate: Before generation, a JSON adequacy checker verifies that the supplied context contains an exact supporting quote for the requested fact
 
@@ -163,8 +163,8 @@ LangChain RAG controller
     |   or Chroma + BM25 query expansion retrieval
     |       |
     |       v
-    |   Deterministic context expansion
-    |   (full page/range or neighboring chunks)
+    |   Deterministic neighbor expansion
+    |   (retrieved chunk plus chunk_index -1 and +1)
     |
     +--> Evidence quality check
             |
@@ -185,7 +185,7 @@ Agent behavior:
 - Uses a lightweight LLM router before retrieval
 - Uses the selected Chroma collection or local hybrid retrieval strategy from the Settings & Eval tab
 - Still retrieves local documents for Cobb County code questions
-- Expands retrieved chunks before adequacy checking so nearby checklist items, table rows, and page-level bullets are visible
+- Expands retrieved chunks before adequacy checking so nearby checklist items, table rows, and bullet values remain visible
 - Uses relevance scoring and a strict JSON evidence adequacy gate
 - Requires an exact supporting quote before generation for numeric, code, inspection, permit, and procedural questions
 - Keeps deterministic keyword/date routing as a backup
@@ -473,7 +473,7 @@ Backend names:
 - `docling_chroma_bm25_hybrid`: Docling-enhanced Chroma collection plus persisted local BM25 corpus
 - `docling_chroma_bm25_expansion`: Option 4 retrieval mode that reuses the Chroma + BM25 hybrid indexes and adds LLM query expansion
 
-Ingestion also writes deterministic context-expansion sidecars under `context_store/`. These JSONL files store page/range text and chunk text by `doc_id`, source, page, and chunk index. At runtime, the app retrieves small chunks for search quality, then expands those chunks before the strict adequacy gate and answer prompt. In `auto` mode, checklist, guide, hydrant, Pre-Construction, and Fire Marshal sources prefer full page/range context; long ordinance documents usually use neighboring chunks. This reduces false refusals when the initial retrieval lands near the right page but cuts off before a bullet, table row, or checklist item.
+Ingestion also writes deterministic context-expansion sidecars under `context_store/`. These JSONL files store chunk text by `doc_id`, source, backend/parser, page metadata, and chunk index. At runtime, the app retrieves small chunks for search quality, then expands each retrieved hit with only same-document neighboring chunks: `chunk_index - 1`, the retrieved chunk, and `chunk_index + 1`. Expansion preserves raw retrieval priority globally, sorts only within each retrieved group by chunk index, deduplicates by stable metadata, and applies the context budget after retrieval-priority ordering. Docling modes use Docling-generated chunks only; they do not use PyPDF fallback content or full-page/page-level expansion. This reduces false refusals caused by truncated chunk boundaries without allowing long lower-ranked pages to push higher-ranked evidence out of the adequacy gate.
 
 After pulling this feature, rebuild the desired ingestion pipelines so `context_store/` is created alongside `vectorstore/` and `bm25_index/`.
 
@@ -491,8 +491,8 @@ Docling acceleration:
 Context expansion:
 
 - `CONTEXT_EXPANSION_ENABLED=true`: enable deterministic expansion after retrieval
-- `CONTEXT_EXPANSION_MODE=auto`: `auto`, `page`, `neighbors`, or `off`
-- `CONTEXT_NEIGHBOR_WINDOW=2`: include neighboring chunks within plus/minus this chunk index when page expansion is not used
+- `CONTEXT_EXPANSION_MODE=neighbors`: neighbor-only expansion; `off` disables expansion
+- `CONTEXT_NEIGHBOR_WINDOW=1`: immediate previous and next chunks are used; current code intentionally caps expansion to `-1/+1`
 - `CONTEXT_MAX_EXPANDED_DOCS=8`: cap expanded context blocks
 - `CONTEXT_MAX_CHARS=18000`: cap total local context passed to adequacy checking and generation
 

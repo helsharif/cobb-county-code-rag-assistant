@@ -301,7 +301,7 @@ def render_settings_eval_tab() -> None:
     expansion_state = "enabled" if settings.context_expansion_enabled else "disabled"
     st.caption(
         f"Context expansion is {expansion_state} "
-        f"(mode={settings.context_expansion_mode}, neighbor_window={settings.context_neighbor_window}, "
+        f"(mode={settings.context_expansion_mode}, effective_neighbors=-1/+1, "
         f"max_blocks={settings.context_max_expanded_docs}, max_chars={settings.context_max_chars})."
     )
 
@@ -696,9 +696,9 @@ def render_about_tab() -> None:
         "or retrieval-quality checks say it is needed."
     )
     st.write(
-        "After initial retrieval, the app deterministically expands small retrieved chunks into full page/range context "
-        "or neighboring chunks before the adequacy gate. This helps checklist items, table rows, and bullet values remain "
-        "visible when the first retrieved chunk stops just before the answer."
+        "After initial retrieval, the app deterministically expands each hit with same-document neighboring chunks only: "
+        "the previous chunk, the retrieved chunk, and the next chunk. It preserves raw retrieval priority before applying "
+        "the context budget, which keeps lower-ranked long documents from pushing the best evidence out of the adequacy gate."
     )
 
     st.image(
@@ -778,7 +778,7 @@ def render_about_tab() -> None:
             {"Layer": "Frontend", "What it does": "Provides a simple chat UI and displays sources.", "Tech": "Streamlit"},
             {"Layer": "Router", "What it does": "Classifies whether the query may need local docs, web search, or both.", "Tech": "LangChain + LLM"},
             {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Chroma, local BM25 fusion, or query expansion"},
-            {"Layer": "Context expansion", "What it does": "Expands small hits to page/range context or neighboring chunks before adequacy checks.", "Tech": "JSONL sidecars + deterministic rules"},
+            {"Layer": "Context expansion", "What it does": "Adds same-document previous/current/next chunks before adequacy checks.", "Tech": "JSONL chunk sidecars + deterministic rules"},
             {"Layer": "Agent logic", "What it does": "Combines router signal, retrieval scores, expanded context, and a strict JSON evidence gate.", "Tech": "LangChain"},
             {"Layer": "Generation", "What it does": "Synthesizes a short answer from retrieved evidence only.", "Tech": f"{settings.llm_provider}: {runtime_model}"},
             {"Layer": "Deployment", "What it does": "Runs locally, in Docker, or on Streamlit Community Cloud.", "Tech": "Docker + Streamlit"},
@@ -814,8 +814,9 @@ def render_about_tab() -> None:
     )
     st.write(
         "Docling improves document parsing, while deterministic context expansion improves what the gate sees after retrieval. "
-        "Retrieved chunks may be expanded to full page/range context for checklist and guide PDFs, or to neighboring chunks "
-        "for long ordinance documents. The answer model still answers only when the expanded context explicitly supports the requested fact."
+        "Retrieved chunks are expanded only with same-document neighboring chunks, and Docling modes use Docling-generated "
+        "chunks only. The app does not use full-page expansion or PyPDF fallback content in Docling modes. The answer model "
+        "still answers only when the expanded context explicitly supports the requested fact."
     )
 
     st.subheader("Guardrails")
