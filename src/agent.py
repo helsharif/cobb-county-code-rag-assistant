@@ -11,6 +11,7 @@ from datetime import date
 from langchain_core.prompts import ChatPromptTemplate
 
 from src.config import ORIGINAL_COLLECTION_NAME, get_chat_model
+from src.context_expansion import expand_retrieved_docs
 from src.retriever import RetrievedSource, has_sufficient_retrieval, search_documents
 from src.tools import web_search
 
@@ -51,17 +52,63 @@ class CobbCountyRAGAgent:
             [
                 (
                     "system",
-                    "You primarily answer questions about Cobb County, Georgia building and fire codes. "
-                    "Use only the supplied local document excerpts, web search results, and runtime context to answer. "
-                    "Do not add thresholds, dates, code sections, exceptions, fees, procedural requirements, or other factual details "
-                    "unless they appear explicitly in the provided context. "
-                    "If the retrieved context only partially answers the question, state what is supported by the context "
-                    "and clearly say what was not found. "
-                    "If the retrieved context does not support a reliable answer, or if the evidence is missing, conflicting, "
-                    "or not authoritative enough, answer exactly: "
-                    f"{NO_ANSWER} "
-                    "Keep the answer to 2-3 short paragraphs maximum. Include source names or URLs inline when available. "
-                    "For simple current-date questions, use the runtime date. Do not provide legal, engineering, or permitting advice.",
+                    "You answer questions about Cobb County, Georgia building and fire code documents.\n\n"
+                    "Use ONLY the supplied context in this request:\n"
+                    "- local document excerpts\n"
+                    "- web results\n"
+                    "- runtime context\n\n"
+                    "Do NOT use:\n"
+                    "- memory\n"
+                    "- prior conversation turns\n"
+                    "- general code knowledge\n"
+                    "- outside assumptions\n"
+                    "- likely values\n"
+                    "- common construction practice\n"
+                    "- NFPA/IBC knowledge unless explicitly quoted in the supplied context\n"
+                    "- facts from documents that are not included in the supplied context\n\n"
+                    "CRITICAL RULE:\n"
+                    "If a fact is not visible in the supplied context for this request, it does not exist for purposes "
+                    "of your answer.\n\n"
+                    "Before answering, silently perform this evidence check:\n"
+                    "1. Identify the exact fact the user is asking for.\n"
+                    "2. Search the supplied context for an exact supporting phrase.\n"
+                    f"3. If the exact supporting phrase is absent, answer exactly:\n\"{NO_ANSWER}\"\n\n"
+                    "Faithfulness rules:\n"
+                    "1. Every factual claim must be directly supported by the supplied context.\n"
+                    "2. Do not state thresholds, dates, dimensions, distances, heights, fire ratings, fees, code sections, "
+                    "exceptions, inspection requirements, permit requirements, procedural steps, responsible offices, "
+                    "deadlines, forms, penalties, or approval conditions unless they appear explicitly in the supplied context.\n"
+                    "3. For numeric, dimensional, code, inspection, permit, or procedural questions:\n"
+                    "   - The exact value or requirement must appear in the supplied context.\n"
+                    "   - The answer must quote or closely paraphrase the supporting phrase.\n"
+                    "   - Cite the source name, local source ID, or URL.\n"
+                    f"   - If the exact value is not present, answer exactly:\n     \"{NO_ANSWER}\"\n"
+                    "4. Do not infer from related topics, similar codes, nearby sections, source titles, document names, "
+                    "or common practice.\n"
+                    "5. Do not combine facts from separate excerpts unless the relationship is explicitly stated in the context.\n"
+                    "6. Do not guess section numbers. Cite section numbers only when clearly shown in the context.\n\n"
+                    "Special rule for missing evidence:\n"
+                    "If the user asks for a numeric or procedural requirement and the supplied context does not contain "
+                    f"the exact requested value or procedure, do not explain, qualify, or speculate. Output only:\n\"{NO_ANSWER}\"\n\n"
+                    "Partial-answer rule:\n"
+                    "If the context directly supports part of the answer but not the requested detail, state only the "
+                    "supported part and say:\n"
+                    "\"The retrieved context does not state [missing detail].\"\n\n"
+                    "Do not say:\n"
+                    "- \"no other details were found\"\n"
+                    "- \"no additional requirements exist\"\n"
+                    "- \"the minimum is...\"\n"
+                    "unless the supplied context explicitly supports that statement.\n\n"
+                    "Answer relevancy:\n"
+                    "- Answer only the user's specific question.\n"
+                    "- Avoid generic background, meta-commentary, and unnecessary caveats.\n"
+                    "- Do not provide legal, engineering, design, or permitting advice.\n"
+                    "- For simple current-date questions, use the runtime date.\n\n"
+                    "Output format:\n"
+                    "1. Keep the answer to 2-3 short paragraphs maximum.\n"
+                    "2. Include source names, local source IDs, or URLs inline when available.\n"
+                    "3. When giving a technical requirement, include a short supporting phrase from the context.\n"
+                    "4. If refusing due to insufficient evidence, output only the exact abstention sentence and nothing else.",
                 ),
                 (
                     "human",
@@ -74,11 +121,30 @@ class CobbCountyRAGAgent:
             [
                 (
                     "system",
-                    "Decide whether the supplied evidence is enough to answer the user question. "
-                    "Reply with only YES or NO. Reply NO if the evidence is off-topic, too vague, incomplete, "
-                    "or does not establish the current effective requirements requested by the question.",
+                    "You are an evidence sufficiency checker for a Cobb County building and fire code RAG system.\n\n"
+                    "Use ONLY the supplied evidence. Do not use memory, prior conversation, outside knowledge, "
+                    "common code knowledge, NFPA/IBC assumptions, or likely values.\n\n"
+                    "Your job is NOT to answer the question. Your job is only to decide whether the supplied evidence "
+                    "contains the exact fact needed to answer.\n\n"
+                    "For questions asking for numbers, dimensions, distances, heights, fire ratings, dates, fees, "
+                    "code sections, inspection requirements, permit requirements, or procedures:\n"
+                    "- Set answerable=true only if the exact value or exact requirement appears in the supplied evidence.\n"
+                    "- Set answerable=false if the evidence is merely related, vague, incomplete, off-topic, or missing the exact requested value.\n"
+                    "- Set answerable=false if the answer would require inference from related topics, similar codes, source titles, "
+                    "document names, or common practice.\n\n"
+                    "If the evidence does not contain a direct quote that answers the question, set answerable=false.\n\n"
+                    "Return only valid JSON:\n"
+                    "{{\n"
+                    '  "answerable": true/false,\n'
+                    '  "required_fact": "the exact fact needed to answer the question",\n'
+                    '  "supporting_quote": "exact quote from the evidence that answers the question, or empty string",\n'
+                    '  "source_id": "source name/local ID/URL if shown, or empty string"\n'
+                    "}}",
                 ),
-                ("human", "Question:\n{question}\n\nEvidence:\n{evidence}\n\nEnough evidence?"),
+                (
+                    "human",
+                    "Question:\n{question}\n\nEvidence:\n{evidence}\n\nIs the exact answer present in the evidence?",
+                ),
             ]
         )
         self.router_prompt = ChatPromptTemplate.from_messages(
@@ -99,8 +165,23 @@ class CobbCountyRAGAgent:
     def answer(self, question: str, force_web: bool = False) -> AgentResult:
         route = self._route_query(question)
         docs, local_sources = search_documents(question, collection_name=self.collection_name)
+        original_docs = docs
+        original_sources = local_sources
+        docs, local_sources = expand_retrieved_docs(
+            docs,
+            local_sources,
+            collection_name=self.collection_name,
+        )
         local_context = self._format_local_context(docs, local_sources)
         local_is_sufficient = has_sufficient_retrieval(local_sources)
+        logger.info(
+            "Retrieved %s chunks and expanded to %s context blocks for collection %s.",
+            len(original_docs),
+            len(docs),
+            self.collection_name,
+        )
+        logger.debug("Original retrieved chunks: %s", self._debug_sources(original_sources))
+        logger.debug("Expanded retrieved chunks: %s", self._debug_sources(local_sources))
 
         use_web = force_web or route.needs_web or self._should_use_web(question, local_context, local_sources)
         web_context = ""
@@ -132,6 +213,32 @@ class CobbCountyRAGAgent:
                 web_query=web_query,
             )
 
+        final_evidence = "\n\n".join(
+            evidence
+            for evidence in (
+                local_context if local_is_sufficient else "",
+                web_context if has_web_results else "",
+            )
+            if evidence.strip()
+        )
+        if not self._is_current_date_question(question) and not self._evidence_is_answerable(
+            question,
+            final_evidence,
+        ):
+            return AgentResult(
+                answer=NO_ANSWER,
+                sources=[],
+                used_local=False,
+                used_web=False,
+                contexts=[doc.page_content for doc in docs] if local_is_sufficient else [],
+                route_reason=route.reason,
+                route_needs_web=route.needs_web,
+                web_search_attempted=use_web,
+                web_search_error=web_search_error,
+                web_query=web_query,
+            )
+
+        logger.debug("Adequacy gate input context: %s", final_evidence)
         chain = self.prompt | self.llm
         response = chain.invoke(
             {
@@ -144,6 +251,7 @@ class CobbCountyRAGAgent:
         answer = getattr(response, "content", str(response)).strip()
         if not answer:
             answer = NO_ANSWER
+        logger.debug("Final answer: %s", answer)
 
         sources = self._source_labels(local_sources) if local_is_sufficient else []
         if has_web_results:
@@ -167,12 +275,20 @@ class CobbCountyRAGAgent:
     @staticmethod
     def _format_local_context(docs, sources: list[RetrievedSource]) -> str:
         blocks: list[str] = []
+        remaining_chars = 18000
         for index, (doc, source) in enumerate(zip(docs, sources), start=1):
+            if remaining_chars <= 0:
+                break
             page_text = f", page {source.page}" if source.page else ""
+            metadata = doc.metadata or {}
+            expansion_text = f" | expansion={metadata.get('expansion_type')}" if metadata.get("expansion_type") else ""
+            section_text = f" | section={metadata.get('section')}" if metadata.get("section") else ""
+            content = doc.page_content[:remaining_chars]
             blocks.append(
-                f"[Local {index}] {source.source}{page_text} | relevance={source.score:.2f}\n"
-                f"{doc.page_content[:1600]}"
+                f"[Local {index}] {source.source}{page_text} | relevance={source.score:.2f}{expansion_text}{section_text}\n"
+                f"{content}"
             )
+            remaining_chars -= len(content)
         return "\n\n".join(blocks)
 
     def _should_use_web(self, question: str, local_context: str, sources: list[RetrievedSource]) -> bool:
@@ -180,14 +296,34 @@ class CobbCountyRAGAgent:
             return True
         if not has_sufficient_retrieval(sources):
             return True
+        return not self._evidence_is_answerable(question, local_context)
+
+    def _evidence_is_answerable(self, question: str, evidence: str) -> bool:
+        if not evidence.strip():
+            return False
+        from src.config import get_settings
+
+        settings = get_settings()
         try:
             response = (self.adequacy_prompt | self.llm).invoke(
-                {"question": question, "evidence": local_context[:6000]}
+                {"question": question, "evidence": evidence[: settings.context_max_chars]}
             )
-            decision = getattr(response, "content", str(response)).strip().upper()
-            return not decision.startswith("YES")
+            content = getattr(response, "content", str(response)).strip()
+            data = self._parse_route_json(content)
+            answerable = bool(data.get("answerable", False))
+            supporting_quote = str(data.get("supporting_quote") or "").strip()
+            logger.info(
+                "Strict adequacy decision answerable=%s required_fact=%s source_id=%s.",
+                answerable,
+                data.get("required_fact", ""),
+                data.get("source_id", ""),
+            )
+            if answerable and not supporting_quote:
+                logger.info("Strict adequacy gate rejected answerable=true without a supporting quote.")
+                return False
+            return answerable
         except Exception as exc:
-            logger.warning("Retrieval adequacy check failed; using score threshold only: %s", exc)
+            logger.warning("Strict evidence adequacy check failed; rejecting evidence: %s", exc)
             return False
 
     def _route_query(self, question: str) -> QueryRoute:
@@ -300,3 +436,10 @@ class CobbCountyRAGAgent:
     @staticmethod
     def _has_web_results(web_context: str) -> bool:
         return bool(web_context.strip()) and "No web search results found" not in web_context
+
+    @staticmethod
+    def _debug_sources(sources: list[RetrievedSource]) -> list[str]:
+        return [
+            f"{source.source} page={source.page} score={source.score:.2f} snippet={source.snippet[:120]}"
+            for source in sources
+        ]

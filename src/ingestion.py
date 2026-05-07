@@ -7,7 +7,10 @@ import os
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
 import argparse
+import hashlib
+import json
 import logging
+import re
 import time
 import shutil
 from pathlib import Path
@@ -31,6 +34,44 @@ from src.config import (
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s:%(name)s:%(message)s")
 logger = logging.getLogger(__name__)
+
+
+def stable_doc_id(source: str) -> str:
+    """Return a stable normalized document id derived from a source path."""
+
+    normalized = source.replace("\\", "/").lower().strip()
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized).strip("-")[:80] or "document"
+    digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:10]
+    return f"{slug}-{digest}"
+
+
+def detect_item_number(text: str) -> str:
+    """Return a leading checklist/list item number when one is easy to detect."""
+
+    match = re.search(r"(?m)^\s*(?:item\s*)?(\d{1,3})[\).\:-]\s+", text[:500])
+    return match.group(1) if match else ""
+
+
+def normalize_document_metadata(document: Document, parser_type: str | None = None) -> None:
+    """Add stable metadata used for context expansion without removing existing fields."""
+
+    source = str(document.metadata.get("source") or document.metadata.get("file_name") or "local document")
+    document.metadata["source"] = source
+    document.metadata.setdefault("source_path", source)
+    document.metadata.setdefault("file_name", Path(source).name)
+    document.metadata["doc_id"] = str(document.metadata.get("doc_id") or stable_doc_id(source))
+    if parser_type:
+        document.metadata["parser_type"] = parser_type
+    document.metadata.setdefault("backend", document.metadata.get("parser_type") or parser_type or "unknown")
+
+    page = document.metadata.get("page")
+    if isinstance(page, int):
+        document.metadata.setdefault("page_start", page + 1)
+        document.metadata.setdefault("page_end", page + 1)
+    page_start = document.metadata.get("page_start")
+    if isinstance(page_start, int):
+        document.metadata.setdefault("page", page_start - 1)
+    document.metadata.setdefault("item_number", detect_item_number(document.page_content))
 
 
 def run_with_rate_limit_backoff(operation, description: str, settings):
@@ -96,6 +137,7 @@ def load_pdf_with_original_parser(pdf_path: Path, data_dir: Path, parser_type: s
         page.metadata["source"] = str(pdf_path.relative_to(data_dir.parent))
         page.metadata["file_name"] = pdf_path.name
         page.metadata["parser_type"] = parser_type
+        normalize_document_metadata(page, parser_type)
     return pages
 
 
@@ -124,6 +166,7 @@ def load_pdf_page_range_with_original_parser(
                 },
             )
         )
+        normalize_document_metadata(documents[-1], parser_type)
     return documents
 
 
@@ -277,7 +320,7 @@ def convert_pdf_range_with_docling(
     markdown = result.document.export_to_markdown()
     if not markdown.strip():
         return None
-    return Document(
+    document = Document(
         page_content=markdown,
         metadata={
             "source": str(pdf_path.relative_to(data_dir.parent)),
@@ -288,6 +331,8 @@ def convert_pdf_range_with_docling(
             "section": section,
         },
     )
+    normalize_document_metadata(document, "docling")
+    return document
 
 
 def load_pdfs_with_docling(data_dir: Path) -> list[Document]:
@@ -428,9 +473,78 @@ def split_documents(documents: list[Document]) -> list[Document]:
         separators=["\n\n", "\n", ". ", " ", ""],
     )
     chunks = splitter.split_documents(documents)
-    for index, chunk in enumerate(chunks):
-        chunk.metadata["chunk_index"] = index
+    counters: dict[str, int] = {}
+    for chunk in chunks:
+        normalize_document_metadata(chunk, str(chunk.metadata.get("parser_type") or "unknown"))
+        doc_key = str(chunk.metadata.get("doc_id") or chunk.metadata.get("source") or "local document")
+        chunk_index = counters.get(doc_key, 0)
+        chunk.metadata["chunk_index"] = chunk_index
+        counters[doc_key] = chunk_index + 1
+        chunk.metadata.setdefault("item_number", detect_item_number(chunk.page_content))
     return chunks
+
+
+def context_store_paths(slug: str) -> tuple[Path, Path]:
+    """Return page and chunk sidecar paths for one retrieval slug."""
+
+    settings = get_settings()
+    return (
+        settings.context_store_dir / f"{slug}_pages.jsonl",
+        settings.context_store_dir / f"{slug}_chunks.jsonl",
+    )
+
+
+def write_context_stores(source_documents: list[Document], chunks: list[Document], slug: str) -> None:
+    """Persist page/range and chunk text used for deterministic context expansion."""
+
+    settings = get_settings()
+    settings.context_store_dir.mkdir(parents=True, exist_ok=True)
+    page_path, chunk_path = context_store_paths(slug)
+    with page_path.open("w", encoding="utf-8") as file:
+        for document in source_documents:
+            normalize_document_metadata(document, str(document.metadata.get("parser_type") or "unknown"))
+            text = document.page_content.strip()
+            if not text:
+                continue
+            record = {
+                "doc_id": document.metadata.get("doc_id", ""),
+                "source": document.metadata.get("source", ""),
+                "source_path": document.metadata.get("source_path", ""),
+                "file_name": document.metadata.get("file_name", ""),
+                "page": document.metadata.get("page_start") or document.metadata.get("page"),
+                "page_start": document.metadata.get("page_start"),
+                "page_end": document.metadata.get("page_end"),
+                "parser_type": document.metadata.get("parser_type", ""),
+                "backend": document.metadata.get("backend", ""),
+                "section": document.metadata.get("section", ""),
+                "item_number": document.metadata.get("item_number", ""),
+                "text": text,
+            }
+            file.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    with chunk_path.open("w", encoding="utf-8") as file:
+        for chunk in chunks:
+            normalize_document_metadata(chunk, str(chunk.metadata.get("parser_type") or "unknown"))
+            text = chunk.page_content.strip()
+            if not text:
+                continue
+            record = {
+                "doc_id": chunk.metadata.get("doc_id", ""),
+                "source": chunk.metadata.get("source", ""),
+                "source_path": chunk.metadata.get("source_path", ""),
+                "file_name": chunk.metadata.get("file_name", ""),
+                "page": chunk.metadata.get("page_start") or chunk.metadata.get("page"),
+                "page_start": chunk.metadata.get("page_start"),
+                "page_end": chunk.metadata.get("page_end"),
+                "chunk_index": chunk.metadata.get("chunk_index"),
+                "parser_type": chunk.metadata.get("parser_type", ""),
+                "backend": chunk.metadata.get("backend", ""),
+                "section": chunk.metadata.get("section", ""),
+                "item_number": chunk.metadata.get("item_number", ""),
+                "text": text,
+            }
+            file.write(json.dumps(record, ensure_ascii=False) + "\n")
+    logger.info("Saved context expansion sidecars for %s at %s and %s.", slug, page_path, chunk_path)
 
 
 def delete_collection(collection_name: str) -> None:
@@ -448,9 +562,16 @@ def delete_collection(collection_name: str) -> None:
         logger.info("No existing Chroma collection named %s to delete.", collection_name)
 
 
-def index_documents(documents: list[Document], collection_name: str, rebuild: bool = False) -> int:
+def index_documents(
+    documents: list[Document],
+    collection_name: str,
+    rebuild: bool = False,
+    context_slug: str | None = None,
+) -> int:
     """Embed documents into the requested Chroma collection."""
     chunks = split_documents(documents)
+    if context_slug:
+        write_context_stores(documents, chunks, context_slug)
     return index_chunks(chunks, collection_name, rebuild=rebuild)
 
 
@@ -501,14 +622,14 @@ def build_original_vectorstore(rebuild: bool = False) -> int:
     """Build the original PyPDFLoader-based Chroma collection."""
     settings = get_settings()
     documents = load_pdfs(settings.data_dir)
-    return index_documents(documents, ORIGINAL_COLLECTION_NAME, rebuild=rebuild)
+    return index_documents(documents, ORIGINAL_COLLECTION_NAME, rebuild=rebuild, context_slug="pypdf_chroma")
 
 
 def build_docling_vectorstore(rebuild: bool = False) -> int:
     """Build the Docling-enhanced Chroma collection."""
     settings = get_settings()
     documents = load_pdfs_with_docling(settings.data_dir)
-    return index_documents(documents, DOCLING_COLLECTION_NAME, rebuild=rebuild)
+    return index_documents(documents, DOCLING_COLLECTION_NAME, rebuild=rebuild, context_slug="docling_chroma")
 
 
 def build_docling_chroma_bm25_hybrid(rebuild: bool = False) -> int:
@@ -518,6 +639,9 @@ def build_docling_chroma_bm25_hybrid(rebuild: bool = False) -> int:
     settings = get_settings()
     documents = load_pdfs_with_docling(settings.data_dir)
     chunks = split_documents(documents)
+    write_context_stores(documents, chunks, "docling_chroma")
+    write_context_stores(documents, chunks, "docling_chroma_bm25_hybrid")
+    write_context_stores(documents, chunks, "docling_chroma_bm25_expansion")
     count = index_chunks(chunks, DOCLING_COLLECTION_NAME, rebuild=rebuild)
     save_bm25_corpus(chunks, settings=settings)
     return count
@@ -613,6 +737,14 @@ def log_effective_ingestion_settings(settings, slugs: list[str]) -> None:
         "Retrieval runtime settings: RETRIEVER_K=%s, MIN_RELEVANCE_SCORE=%s.",
         settings.retriever_k,
         settings.min_relevance_score,
+    )
+    logger.info(
+        "Context expansion settings: ENABLED=%s, MODE=%s, NEIGHBOR_WINDOW=%s, MAX_EXPANDED_DOCS=%s, MAX_CHARS=%s.",
+        settings.context_expansion_enabled,
+        settings.context_expansion_mode,
+        settings.context_neighbor_window,
+        settings.context_max_expanded_docs,
+        settings.context_max_chars,
     )
     if any(slug in {"docling_chroma", "docling_chroma_bm25_hybrid", "docling_chroma_bm25_expansion"} for slug in slugs):
         logger.info(

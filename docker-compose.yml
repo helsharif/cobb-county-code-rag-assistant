@@ -21,6 +21,11 @@ services:
       EMBEDDING_MAX_RETRIES: ${EMBEDDING_MAX_RETRIES:-8}
       RETRIEVER_K: ${RETRIEVER_K:-10}
       MIN_RELEVANCE_SCORE: ${MIN_RELEVANCE_SCORE:-0.30}
+      CONTEXT_EXPANSION_ENABLED: ${CONTEXT_EXPANSION_ENABLED:-true}
+      CONTEXT_EXPANSION_MODE: ${CONTEXT_EXPANSION_MODE:-auto}
+      CONTEXT_NEIGHBOR_WINDOW: ${CONTEXT_NEIGHBOR_WINDOW:-2}
+      CONTEXT_MAX_EXPANDED_DOCS: ${CONTEXT_MAX_EXPANDED_DOCS:-8}
+      CONTEXT_MAX_CHARS: ${CONTEXT_MAX_CHARS:-18000}
       BM25_INDEX_FILE: ${BM25_INDEX_FILE:-docling_bm25_chunks.json}
       DOCLING_ACCELERATOR_DEVICE: ${DOCLING_ACCELERATOR_DEVICE:-auto}
       DOCLING_NUM_THREADS: ${DOCLING_NUM_THREADS:-4}
@@ -44,4 +49,5 @@ services:
       - ./data:/app/data
       - ./vectorstore:/app/vectorstore
       - ./bm25_index:/app/bm25_index
+      - ./context_store:/app/context_store
     restart: unless-stopped

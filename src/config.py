@@ -80,6 +80,7 @@ class Settings:
     data_dir: Path = ROOT_DIR / "data"
     vectorstore_dir: Path = ROOT_DIR / "vectorstore"
     bm25_index_dir: Path = ROOT_DIR / "bm25_index"
+    context_store_dir: Path = ROOT_DIR / "context_store"
     collection_name: str = field(default_factory=lambda: _env_str("CHROMA_COLLECTION_NAME", ORIGINAL_COLLECTION_NAME))
 
     llm_provider: str = field(default_factory=lambda: _env_lower("LLM_PROVIDER", "openai"))
@@ -106,6 +107,11 @@ class Settings:
     embedding_max_retries: int = field(default_factory=lambda: _env_int("EMBEDDING_MAX_RETRIES", "8"))
     retriever_k: int = field(default_factory=lambda: _env_int("RETRIEVER_K", "10"))
     min_relevance_score: float = field(default_factory=lambda: _env_float("MIN_RELEVANCE_SCORE", "0.30"))
+    context_expansion_enabled: bool = field(default_factory=lambda: _env_bool("CONTEXT_EXPANSION_ENABLED", "true"))
+    context_expansion_mode: str = field(default_factory=lambda: _env_lower("CONTEXT_EXPANSION_MODE", "auto"))
+    context_neighbor_window: int = field(default_factory=lambda: _env_int("CONTEXT_NEIGHBOR_WINDOW", "2"))
+    context_max_expanded_docs: int = field(default_factory=lambda: _env_int("CONTEXT_MAX_EXPANDED_DOCS", "8"))
+    context_max_chars: int = field(default_factory=lambda: _env_int("CONTEXT_MAX_CHARS", "18000"))
     eval_judge_model: str = field(default_factory=lambda: _env_str("EVAL_JUDGE_MODEL", "gpt-5.1"))
     eval_judge_delay_seconds: float = field(default_factory=lambda: _env_float("EVAL_JUDGE_DELAY_SECONDS", "1.0"))
     eval_judge_max_retries: int = field(default_factory=lambda: _env_int("EVAL_JUDGE_MAX_RETRIES", "8"))

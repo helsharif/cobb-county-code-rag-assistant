@@ -121,7 +121,9 @@ Key steps:
 - Query routing: A lightweight LLM classifier flags whether the query needs local retrieval, web search, or both
 - Evaluation: LangSmith experiment scores persisted per vector store for faithfulness, answer relevance, context precision, and context recall
 - Retrieval scoring: User questions are matched against indexed chunks
+- Context expansion: Retrieved chunks are deterministically expanded to page/range context or neighboring chunks before evidence checks
 - Evidence thresholding: Weak retrieval triggers fallback web search
+- Strict evidence gate: Before generation, a JSON adequacy checker verifies that the supplied context contains an exact supporting quote for the requested fact
 
 ---
 
@@ -159,6 +161,10 @@ LangChain RAG controller
     |       v
     |   Chroma vector DB, Chroma + BM25 hybrid retrieval,
     |   or Chroma + BM25 query expansion retrieval
+    |       |
+    |       v
+    |   Deterministic context expansion
+    |   (full page/range or neighboring chunks)
     |
     +--> Evidence quality check
             |
@@ -167,7 +173,11 @@ LangChain RAG controller
             +--> Weak or current-code question: use web search
                     |
                     v
-                Synthesize grounded answer with sources
+                Strict exact-evidence gate
+                    |
+                    +--> Exact support present: synthesize grounded answer with sources
+                    |
+                    +--> Exact support absent: conservative abstention response
 ```
 
 Agent behavior:
@@ -175,7 +185,9 @@ Agent behavior:
 - Uses a lightweight LLM router before retrieval
 - Uses the selected Chroma collection or local hybrid retrieval strategy from the Settings & Eval tab
 - Still retrieves local documents for Cobb County code questions
-- Uses relevance scoring and an LLM adequacy check
+- Expands retrieved chunks before adequacy checking so nearby checklist items, table rows, and page-level bullets are visible
+- Uses relevance scoring and a strict JSON evidence adequacy gate
+- Requires an exact supporting quote before generation for numeric, code, inspection, permit, and procedural questions
 - Keeps deterministic keyword/date routing as a backup
 - Forces web verification for current, latest, adopted, or effective-date questions
 - Keeps responses to 2-3 short paragraphs
@@ -219,7 +231,9 @@ Example retrieval test:
 - Local retrieval alone is not enough for "current" or "effective date" questions because codes change.
 - Keeping file and page metadata is essential for user trust.
 - Layout-aware parsing can improve retrieval when code PDFs contain headings, tables, or multi-column formatting.
-- A conservative fallback response is safer than forcing an answer from weak evidence.
+- Deterministic context expansion reduces false refusals when a small retrieved chunk lands just before the relevant checklist item, bullet value, or table row.
+- A conservative fallback response is safer than forcing an answer from weak or merely related evidence.
+- Exact-evidence gating improves faithfulness by refusing numeric, code, inspection, permit, and procedural answers unless the supporting value or requirement appears in the supplied context.
 - Streamlit is effective for quickly turning a RAG pipeline into a recruiter-friendly demo app.
 - Docker support improves reproducibility for portfolio reviewers and hiring managers.
 
@@ -446,12 +460,22 @@ Ingestion accepts comma-separated slugs, so you can rebuild multiple selected ba
 python -m src.ingestion --rebuild --pipeline pypdf_chroma,docling_chroma_bm25_hybrid
 ```
 
+After rebuilding, inspect deterministic context expansion for known checklist/guide cases:
+
+```bash
+python -m src.debug_context_expansion --collection-name cobb_code_docs_docling --verbose
+```
+
 Backend names:
 
 - `cobb_code_docs_original`: original PDF extraction behavior
 - `cobb_code_docs_docling`: Docling-enhanced layout-aware PDF parsing
 - `docling_chroma_bm25_hybrid`: Docling-enhanced Chroma collection plus persisted local BM25 corpus
 - `docling_chroma_bm25_expansion`: Option 4 retrieval mode that reuses the Chroma + BM25 hybrid indexes and adds LLM query expansion
+
+Ingestion also writes deterministic context-expansion sidecars under `context_store/`. These JSONL files store page/range text and chunk text by `doc_id`, source, page, and chunk index. At runtime, the app retrieves small chunks for search quality, then expands those chunks before the strict adequacy gate and answer prompt. In `auto` mode, checklist, guide, hydrant, Pre-Construction, and Fire Marshal sources prefer full page/range context; long ordinance documents usually use neighboring chunks. This reduces false refusals when the initial retrieval lands near the right page but cuts off before a bullet, table row, or checklist item.
+
+After pulling this feature, rebuild the desired ingestion pipelines so `context_store/` is created alongside `vectorstore/` and `bm25_index/`.
 
 Docling acceleration:
 
@@ -463,6 +487,14 @@ Docling acceleration:
 - `DOCLING_MAX_PAGES=250`: PDFs above this size are processed as logical TOC/bookmark sections when possible
 - `DOCLING_PAGE_CHUNK_SIZE=30`: maximum page-window size for oversized sections or PDFs with no usable TOC
 - `DOCLING_PAGE_OVERLAP=5`: overlap between fallback page windows to protect tables and sections near boundaries
+
+Context expansion:
+
+- `CONTEXT_EXPANSION_ENABLED=true`: enable deterministic expansion after retrieval
+- `CONTEXT_EXPANSION_MODE=auto`: `auto`, `page`, `neighbors`, or `off`
+- `CONTEXT_NEIGHBOR_WINDOW=2`: include neighboring chunks within plus/minus this chunk index when page expansion is not used
+- `CONTEXT_MAX_EXPANDED_DOCS=8`: cap expanded context blocks
+- `CONTEXT_MAX_CHARS=18000`: cap total local context passed to adequacy checking and generation
 
 ### 7. Run the Streamlit app
 
@@ -516,6 +548,18 @@ Metrics shown:
 - **Context recall:** Did the retriever find all the necessary facts? It measures whether the retrieved context contains all the necessary information, compared to a "ground truth" answer.
 - **Latency:** Mean, P50, and P99 execution time in seconds across the 50-question evaluation set. For Option 4, this includes the additional query-expansion LLM call.
 
+The four quality metrics use a five-point LangSmith evaluator scale rather than binary pass/fail scoring:
+
+| Score | Interpretation |
+| ---: | --- |
+| 0.00 | No meaningful support, irrelevant, or unusable |
+| 0.25 | Minimal support with major missing or incorrect facts |
+| 0.50 | Partially correct with important gaps or mixed evidence |
+| 0.75 | Mostly correct with minor omissions, retrieval noise, or wording issues |
+| 1.00 | Fully correct, well-supported, and technically precise |
+
+The evaluator prompts require step-by-step reasoning before assigning a score. They are intentionally strict with technical building and fire code details such as dimensions, dates, fire ratings, fees, code sections, and procedural requirements, while allowing equivalent semantic phrasing.
+
 ![PyPDF vs Docling RAG evaluation metrics](assets/pypdf-vs-docling-rag-eval-metrics.png)
 
 **Figure: PyPDF vs Docling retrieval evaluation on the golden dataset.** Both parsing backends achieve strong faithfulness and answer relevance, with Docling showing modest gains across all reported metrics, including context precision and context recall.
@@ -550,6 +594,7 @@ Evaluation methodology:
 - Information density: Ground-truth answers are intentionally dense, including details such as exact measurements, code section references, tiered fee amounts, and procedural conditions where applicable. This makes the evaluation stricter for faithfulness and context precision because vague or partially grounded answers are less likely to score well.
 - Query distribution: The 50 questions are balanced across simple lookup, reasoning, multi-context, procedural, and scenario-based tasks. This reflects realistic fire permit workflows, from direct code lookups to questions that require synthesis across forms, ordinances, fee schedules, fire inspection guidance, and state or county code references.
 - LangSmith scoring: The Settings & Eval dashboard runs the selected retrieval backend against the fixed dataset, records the experiment in LangSmith, and displays cached scores for faithfulness, answer relevance, context precision, context recall, and latency.
+- Five-point evaluator scale: Quality scores are quantized to `0.00`, `0.25`, `0.50`, `0.75`, or `1.00` to reduce LLM judge jitter while still giving partial credit when an answer or retrieval result is mostly correct.
 
 The evaluation is designed to test whether the app retrieves the right evidence and stays grounded. It is not a legal validation of Cobb County requirements.
 

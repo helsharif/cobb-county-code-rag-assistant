@@ -297,12 +297,24 @@ def render_settings_eval_tab() -> None:
     if selected_collection != current_collection:
         st.caption("New questions will use the selected backend. Existing chat messages are left unchanged.")
 
+    settings = get_settings()
+    expansion_state = "enabled" if settings.context_expansion_enabled else "disabled"
+    st.caption(
+        f"Context expansion is {expansion_state} "
+        f"(mode={settings.context_expansion_mode}, neighbor_window={settings.context_neighbor_window}, "
+        f"max_blocks={settings.context_max_expanded_docs}, max_chars={settings.context_max_chars})."
+    )
+
     st.divider()
     st.subheader("LangSmith Metrics")
     st.write(
         "Metrics are loaded from saved local result files first. Running or re-running evaluation uses the fixed "
         "`eval_testset/cobb_county_testset.csv` file, creates or reuses a LangSmith dataset, and retrieves the "
         "LangSmith experiment scores for this dashboard."
+    )
+    st.caption(
+        "Quality metrics use a five-point evaluator scale: 0.00, 0.25, 0.50, 0.75, and 1.00. "
+        "The judge gives partial credit for mostly correct answers while staying strict on technical code facts."
     )
 
     status = load_eval_status(selected_collection)
@@ -545,11 +557,16 @@ def _render_metric_glossary() -> None:
     with st.expander("Metric definitions", expanded=False):
         st.markdown(
             """
-            - **Faithfulness:** Did the model invent facts? It measures if all claims in the answer are supported *solely* by the retrieved context. A high score means the model did not hallucinate.
-            - **Answer relevance:** Did the model answer the right question? It measures how relevant the generated answer is to the user's prompt, penalizing off-topic, incomplete, or redundant answers.
-            - **Context precision:** Did the retriever rank relevant items first? It measures the ratio of relevant documents within the top results, assessing the quality and ordering of retrieved information.
-            - **Context recall:** Did the retriever find all the necessary facts? It measures whether the retrieved context contains all the necessary information, compared to a "ground truth" answer.
+            - **Faithfulness:** Did the model invent facts? The judge extracts factual claims from the answer and scores the share supported by retrieved context.
+            - **Answer relevance:** Did the model answer the right question? The judge scores how directly and usefully the answer addresses the user's intent.
+            - **Context precision:** How much useful signal was in the retrieved context? The judge scores the ratio of relevant chunks or information to total retrieved context.
+            - **Context recall:** Did retrieval find the facts needed by the reference answer? The judge scores required facts found in context divided by required facts in the golden answer.
             - **Latency:** How long did the selected RAG configuration take per question? The card reports average, median (P50), and 99th percentile (P99) execution time in seconds.
+
+            Quality metrics use five score buckets: **0.00** no meaningful support, **0.25** minimal support,
+            **0.50** partially correct, **0.75** mostly correct, and **1.00** fully correct. The evaluator is strict
+            with numerical values, dates, dimensions, fire ratings, fees, code sections, and procedural requirements,
+            but flexible with equivalent wording.
             """
         )
 
@@ -563,7 +580,7 @@ def _render_metric_card(label: str, value: object) -> None:
         band = "No score"
     else:
         color, background, band = _score_style(score)
-        text = f"{score:.3f}"
+        text = f"{score:.2f}"
     st.markdown(
         f"""
         <div style="
@@ -675,8 +692,13 @@ def render_about_tab() -> None:
     st.write(
         "This app answers questions about Cobb County, Georgia building and fire code materials. "
         "It uses a lightweight LLM router to decide whether a question may need current web verification, "
-        "then searches indexed local documents, checks whether those results look strong enough, and uses web search "
-        "when the router or retrieval-quality checks say it is needed."
+        "then searches indexed local documents, runs a strict evidence gate, and uses web search when the router "
+        "or retrieval-quality checks say it is needed."
+    )
+    st.write(
+        "After initial retrieval, the app deterministically expands small retrieved chunks into full page/range context "
+        "or neighboring chunks before the adequacy gate. This helps checklist items, table rows, and bullet values remain "
+        "visible when the first retrieved chunk stops just before the answer."
     )
 
     st.image(
@@ -730,13 +752,16 @@ def render_about_tab() -> None:
                 router [label="LLM router"];
                 retrieve [label="Retrieve local chunks"];
                 expand [label="Option 4:\\nexpand into 5 queries"];
-                judge [label="Judge evidence"];
+                expand_context [label="Deterministic\\ncontext expansion"];
+                judge [label="Strict JSON\\nevidence gate"];
                 cite [label="Answer with citations"];
+                abstain [label="Conservative\\nabstention"];
                 fallback [label="Search web if needed"];
                 select [label="Selected backend\\nOption 1, 2, 3, or 4"];
-                q -> router -> select -> expand -> retrieve -> judge -> cite;
+                q -> router -> select -> expand -> retrieve -> expand_context -> judge -> cite;
                 router -> fallback;
                 judge -> fallback -> cite;
+                judge -> abstain;
             }
             """,
             use_container_width=True,
@@ -753,7 +778,8 @@ def render_about_tab() -> None:
             {"Layer": "Frontend", "What it does": "Provides a simple chat UI and displays sources.", "Tech": "Streamlit"},
             {"Layer": "Router", "What it does": "Classifies whether the query may need local docs, web search, or both.", "Tech": "LangChain + LLM"},
             {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Chroma, local BM25 fusion, or query expansion"},
-            {"Layer": "Agent logic", "What it does": "Combines router signal, retrieval scores, and evidence checks.", "Tech": "LangChain"},
+            {"Layer": "Context expansion", "What it does": "Expands small hits to page/range context or neighboring chunks before adequacy checks.", "Tech": "JSONL sidecars + deterministic rules"},
+            {"Layer": "Agent logic", "What it does": "Combines router signal, retrieval scores, expanded context, and a strict JSON evidence gate.", "Tech": "LangChain"},
             {"Layer": "Generation", "What it does": "Synthesizes a short answer from retrieved evidence only.", "Tech": f"{settings.llm_provider}: {runtime_model}"},
             {"Layer": "Deployment", "What it does": "Runs locally, in Docker, or on Streamlit Community Cloud.", "Tech": "Docker + Streamlit"},
         ]
@@ -780,11 +806,24 @@ def render_about_tab() -> None:
         "separate from the RAG agent's runtime LLM, to reduce self-evaluation bias and test retrieval quality "
         f"against dense, code-focused reference answers. LangSmith evaluator scoring currently uses `{evaluator_model}`."
     )
-    
+    st.write(
+        "The four quality metrics use a five-point scale: `0.00`, `0.25`, `0.50`, `0.75`, and `1.00`. "
+        "This gives partial credit for mostly correct answers while reducing evaluator jitter. The judge is strict "
+        "with technical details such as dimensions, dates, fire ratings, fees, code sections, and required procedures, "
+        "but flexible with equivalent wording."
+    )
+    st.write(
+        "Docling improves document parsing, while deterministic context expansion improves what the gate sees after retrieval. "
+        "Retrieved chunks may be expanded to full page/range context for checklist and guide PDFs, or to neighboring chunks "
+        "for long ordinance documents. The answer model still answers only when the expanded context explicitly supports the requested fact."
+    )
+
     st.subheader("Guardrails")
     st.write(
         "The app is intentionally conservative: it keeps answers to two or three paragraphs, shows sources when available, "
-        "and says it could not find a reliable answer when the evidence is not strong enough."
+        "and says it could not find a reliable answer when the evidence is not strong enough. Before generation, a JSON "
+        "adequacy checker verifies that the supplied context contains the exact fact needed to answer. For numeric, code, "
+        "inspection, permit, and procedural questions, the app requires the exact value or requirement to appear in context."
     )
     st.info(
         "Portfolio demonstration only. This is not legal, engineering, or permitting advice. "

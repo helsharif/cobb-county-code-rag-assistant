@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from pathlib import Path
+import re
 
 os.environ["ANONYMIZED_TELEMETRY"] = "False"
 
@@ -30,6 +31,29 @@ class RetrievedSource:
     page: int | None
     score: float
     snippet: str
+
+
+TECHNICAL_QUERY_TERMS = (
+    "minimum",
+    "maximum",
+    "required",
+    "requirement",
+    "requirements",
+    "clearance",
+    "clear space",
+    "distance",
+    "height",
+    "depth",
+    "burial",
+    "standpipe",
+    "hydrant",
+    "fdc",
+    "piv",
+    "knox",
+    "inspection",
+    "inches",
+    "feet",
+)
 
 
 def get_vectorstore(settings: Settings | None = None, collection_name: str | None = None) -> Chroma:
@@ -102,21 +126,19 @@ def search_documents(
         return [], []
 
     vectorstore = get_vectorstore(settings, selected_collection)
-    results = vectorstore.similarity_search_with_relevance_scores(query, k=k or settings.retriever_k)
+    top_k = k or settings.retriever_k
+    results = vectorstore.similarity_search_with_relevance_scores(query, k=top_k)
+    if _is_technical_fact_query(query):
+        variant = _technical_query_variant(query)
+        if variant != query:
+            results.extend(vectorstore.similarity_search_with_relevance_scores(variant, k=top_k))
+        results = _dedupe_scored_results(results)[:top_k]
 
     docs: list[Document] = []
     sources: list[RetrievedSource] = []
     for doc, score in results:
         docs.append(doc)
-        page = doc.metadata.get("page")
-        sources.append(
-            RetrievedSource(
-                source=doc.metadata.get("source") or doc.metadata.get("file_name") or "local document",
-                page=int(page) + 1 if isinstance(page, int) else None,
-                score=float(score),
-                snippet=doc.page_content[:350].replace("\n", " ").strip(),
-            )
-        )
+        sources.append(_source_from_document(doc, float(score)))
     return docs, sources
 
 
@@ -128,3 +150,45 @@ def has_sufficient_retrieval(sources: list[RetrievedSource]) -> bool:
         return False
     best_score = max(source.score for source in sources)
     return best_score >= settings.min_relevance_score
+
+
+def _is_technical_fact_query(query: str) -> bool:
+    normalized = query.lower()
+    return any(term in normalized for term in TECHNICAL_QUERY_TERMS)
+
+
+def _technical_query_variant(query: str) -> str:
+    terms = [term for term in TECHNICAL_QUERY_TERMS if term in query.lower()]
+    compact_terms = " ".join(dict.fromkeys(terms))
+    return f"{query} {compact_terms} exact requirement code section fire marshal checklist guide".strip()
+
+
+def _dedupe_scored_results(results: list[tuple[Document, float]]) -> list[tuple[Document, float]]:
+    best: dict[str, tuple[Document, float]] = {}
+    for doc, score in results:
+        key = "::".join(
+            str(part)
+            for part in (
+                doc.metadata.get("doc_id") or doc.metadata.get("source") or doc.metadata.get("file_name") or "doc",
+                doc.metadata.get("page_start") or doc.metadata.get("page") or "na",
+                doc.metadata.get("chunk_index") or re.sub(r"\s+", " ", doc.page_content[:120]),
+            )
+        )
+        if key not in best or score > best[key][1]:
+            best[key] = (doc, score)
+    return sorted(best.values(), key=lambda item: item[1], reverse=True)
+
+
+def _source_from_document(doc: Document, score: float) -> RetrievedSource:
+    page_start = doc.metadata.get("page_start")
+    if isinstance(page_start, int):
+        page = page_start
+    else:
+        raw_page = doc.metadata.get("page")
+        page = int(raw_page) + 1 if isinstance(raw_page, int) else None
+    return RetrievedSource(
+        source=doc.metadata.get("source") or doc.metadata.get("file_name") or "local document",
+        page=page,
+        score=score,
+        snippet=doc.page_content[:350].replace("\n", " ").strip(),
+    )
