@@ -484,44 +484,19 @@ def split_documents(documents: list[Document]) -> list[Document]:
     return chunks
 
 
-def context_store_paths(slug: str) -> tuple[Path, Path]:
-    """Return page and chunk sidecar paths for one retrieval slug."""
+def context_store_path(slug: str) -> Path:
+    """Return the chunk sidecar path for one retrieval slug."""
 
     settings = get_settings()
-    return (
-        settings.context_store_dir / f"{slug}_pages.jsonl",
-        settings.context_store_dir / f"{slug}_chunks.jsonl",
-    )
+    return settings.context_store_dir / f"{slug}_chunks.jsonl"
 
 
-def write_context_stores(source_documents: list[Document], chunks: list[Document], slug: str) -> None:
-    """Persist page/range and chunk text used for deterministic context expansion."""
+def write_context_stores(chunks: list[Document], slug: str) -> None:
+    """Persist chunk text used for deterministic neighbor context expansion."""
 
     settings = get_settings()
     settings.context_store_dir.mkdir(parents=True, exist_ok=True)
-    page_path, chunk_path = context_store_paths(slug)
-    with page_path.open("w", encoding="utf-8") as file:
-        for document in source_documents:
-            normalize_document_metadata(document, str(document.metadata.get("parser_type") or "unknown"))
-            text = document.page_content.strip()
-            if not text:
-                continue
-            record = {
-                "doc_id": document.metadata.get("doc_id", ""),
-                "source": document.metadata.get("source", ""),
-                "source_path": document.metadata.get("source_path", ""),
-                "file_name": document.metadata.get("file_name", ""),
-                "page": document.metadata.get("page_start") or document.metadata.get("page"),
-                "page_start": document.metadata.get("page_start"),
-                "page_end": document.metadata.get("page_end"),
-                "parser_type": document.metadata.get("parser_type", ""),
-                "backend": document.metadata.get("backend", ""),
-                "section": document.metadata.get("section", ""),
-                "item_number": document.metadata.get("item_number", ""),
-                "text": text,
-            }
-            file.write(json.dumps(record, ensure_ascii=False) + "\n")
-
+    chunk_path = context_store_path(slug)
     with chunk_path.open("w", encoding="utf-8") as file:
         for chunk in chunks:
             normalize_document_metadata(chunk, str(chunk.metadata.get("parser_type") or "unknown"))
@@ -544,7 +519,7 @@ def write_context_stores(source_documents: list[Document], chunks: list[Document
                 "text": text,
             }
             file.write(json.dumps(record, ensure_ascii=False) + "\n")
-    logger.info("Saved context expansion sidecars for %s at %s and %s.", slug, page_path, chunk_path)
+    logger.info("Saved context expansion chunk sidecar for %s at %s.", slug, chunk_path)
 
 
 def delete_collection(collection_name: str) -> None:
@@ -571,7 +546,7 @@ def index_documents(
     """Embed documents into the requested Chroma collection."""
     chunks = split_documents(documents)
     if context_slug:
-        write_context_stores(documents, chunks, context_slug)
+        write_context_stores(chunks, context_slug)
     return index_chunks(chunks, collection_name, rebuild=rebuild)
 
 
@@ -639,9 +614,9 @@ def build_docling_chroma_bm25_hybrid(rebuild: bool = False) -> int:
     settings = get_settings()
     documents = load_pdfs_with_docling(settings.data_dir)
     chunks = split_documents(documents)
-    write_context_stores(documents, chunks, "docling_chroma")
-    write_context_stores(documents, chunks, "docling_chroma_bm25_hybrid")
-    write_context_stores(documents, chunks, "docling_chroma_bm25_expansion")
+    write_context_stores(chunks, "docling_chroma")
+    write_context_stores(chunks, "docling_chroma_bm25_hybrid")
+    write_context_stores(chunks, "docling_chroma_bm25_expansion")
     count = index_chunks(chunks, DOCLING_COLLECTION_NAME, rebuild=rebuild)
     save_bm25_corpus(chunks, settings=settings)
     return count
