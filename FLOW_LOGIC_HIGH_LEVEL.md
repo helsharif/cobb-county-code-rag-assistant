@@ -52,6 +52,7 @@ Recommended visual style:
 
 - Orchestrates the full workflow.
 - Runs the selected retrieval configuration.
+- Rewrites Option 5 questions into likely zoning/code terminology before LightRAG graph retrieval.
 - Expands retrieved context using deterministic neighboring chunks.
 - Reranks Options 1-4 expanded context blocks with a CrossEncoder before evidence checking.
 - Checks whether the retrieved evidence is adequate.
@@ -65,6 +66,7 @@ Recommended visual style:
 **Step 5: Local RAG Retrieval**
 
 - The user question is sent to the selected local retrieval pipeline.
+- For Option 5, the app preserves the original question and adds three alternate zoning/code phrasings before LightRAG retrieval.
 - The app searches indexed Cobb County PDFs.
 - Retrieved evidence includes:
   - relevant text chunks
@@ -163,7 +165,7 @@ Use this section as the right-side comparison table in the flowchart.
 | 2 | Docling + Chromadb | Layout-aware dense vector search | Uses Docling to parse PDFs into cleaner structured text before chunking, embedding, and Chroma retrieval. | Layout-heavy PDFs, tables, headings, lists, and regulatory documents |
 | 3 | Docling + Chroma + BM25 Hybrid Search | Dense vector + keyword search | Combines Docling Chroma semantic retrieval with BM25 keyword retrieval, then fuses rankings using Reciprocal Rank Fusion. | Exact technical terms, code sections, and keyword-heavy regulatory questions |
 | 4 | Docling + Chroma + Query Expansion + BM25 Hybrid Search | Multi-query hybrid search | Expands the original question into five total retrieval queries, runs hybrid retrieval for each, deduplicates, and fuses results. | Complex, underspecified, or vocabulary-sensitive questions |
-| 5 | RAG-Anything + LightRAG KG Search | Knowledge graph + vector retrieval | Uses RAG-Anything/Docling to build an isolated LightRAG knowledge graph and queries it in mixed graph/vector mode with LightRAG reranking. | Section relationships, table-aware retrieval, and graph-style document context |
+| 5 | RAG-Anything + LightRAG KG Search | Query rewrite + knowledge graph + vector retrieval | Preserves the original question, adds three likely zoning/code phrasings, then queries an isolated LightRAG knowledge graph in mixed graph/vector mode with LightRAG reranking. | Section relationships, table-aware retrieval, graph-style document context, and terminology-sensitive questions |
 
 ---
 
@@ -223,7 +225,8 @@ flowchart TD
     E2 --> F
     E3 --> F
     E4 --> F
-    E5 --> KG["LightRAG graph/vector context with reranking"]
+    E5 --> QR["Option 5 query rewrite"]
+    QR --> KG["LightRAG graph/vector context with reranking"]
 
     F --> G["Neighbor context expansion"]
     G --> R["Cross-encoder reranking for Options 1-4"]
@@ -256,6 +259,7 @@ For a presentation graphic, use five large numbered bands:
 
 3. **Retrieval and Evidence Workflow**
    - Local RAG Retrieval
+   - Option 5 Query Rewrite
    - Neighbor Context Expansion
    - Cross-Encoder Reranking
    - Evidence Adequacy Gate
@@ -288,6 +292,7 @@ Include these keywords in the graphic:
 - Chroma vector search
 - BM25 hybrid search
 - Query expansion
+- Option 5 query rewrite
 - Cross-encoder reranking
 - LightRAG knowledge graph retrieval
 - Neighbor context expansion

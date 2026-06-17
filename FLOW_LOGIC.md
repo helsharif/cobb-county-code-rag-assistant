@@ -28,7 +28,7 @@ Default retrieval depth:
 - Options 1 and 2 return the top Chroma results.
 - Option 3 fuses Chroma and BM25 results, then keeps the top `RETRIEVER_K`.
 - Option 4 expands the original query into five total queries, retrieves hybrid results for each, deduplicates, fuses, then keeps the top `RETRIEVER_K`.
-- Option 5 uses broader LightRAG retrieval by default: `LIGHTRAG_TOP_K=20`, `LIGHTRAG_CHUNK_TOP_K=30`, `LIGHTRAG_MAX_TOTAL_TOKENS=30000`, and `OPTION5_CONTEXT_MAX_CHARS=60000` for mixed-mode graph/vector retrieval and app-side evidence gating.
+- Option 5 first rewrites the original question into three likely zoning/code phrasings for retrieval only, then uses broader LightRAG retrieval by default: `LIGHTRAG_TOP_K=20`, `LIGHTRAG_CHUNK_TOP_K=30`, `LIGHTRAG_MAX_TOTAL_TOKENS=30000`, and `OPTION5_CONTEXT_MAX_CHARS=60000` for mixed-mode graph/vector retrieval and app-side evidence gating.
 
 ## Main User-Facing Flow
 
@@ -162,6 +162,17 @@ Tradeoff:
 
 - Adds one extra LLM call for query expansion.
 - Latency metrics include this expansion call.
+
+### Option 5: RAG-Anything + LightRAG KG Search
+
+Option 5 uses an LLM rewrite step before LightRAG retrieval:
+
+- The original user question is preserved.
+- The LLM adds three alternate phrasings using likely zoning, code, land-use, permitting, inspection, or fire-code terminology.
+- The rewrite is used only to help LightRAG keyword/entity extraction and graph/vector retrieval.
+- The rewrite does not answer the question and must not add facts, numbers, requirements, or code sections.
+
+After rewriting, LightRAG runs mixed-mode graph/vector retrieval with broader top-k and chunk-k settings, then applies its configured reranker.
 
 ## Deterministic Context Expansion
 
@@ -597,11 +608,13 @@ flowchart TD
     D --> O2["Option 2: Docling + Chroma"]
     D --> O3["Option 3: Docling + Chroma + BM25 hybrid"]
     D --> O4["Option 4: Query expansion + Docling + Chroma + BM25 hybrid"]
+    D --> O5["Option 5: Query rewrite + LightRAG KG mix"]
 
     O1 --> E["Raw retrieved chunks"]
     O2 --> E
     O3 --> H["RRF fusion and deduplication"] --> E
     O4 --> Q["Generate 4 expanded queries"] --> M["Run hybrid retrieval for 5 total queries"] --> H2["Deduplicate and fuse results"] --> E
+    O5 --> Q5["Generate 3 zoning/code alternate phrasings"] --> KG["LightRAG graph/vector retrieval with reranking"] --> F
 
     E --> X["Neighbor-only context expansion"]
     X --> Y["Preserve retrieval rank order and apply context budget"]

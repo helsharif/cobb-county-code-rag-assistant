@@ -726,7 +726,8 @@ def render_about_tab() -> None:
             "pipeline, Option 2 uses Docling-enhanced parsing that first exports layout-aware Markdown, and Option 3 "
             "uses the Docling Chroma collection with a local BM25 keyword corpus. Option 4 reuses those local indexes "
             "and adds LLM query expansion at retrieval time. Option 5 builds a separate RAG-Anything/LightRAG "
-            "knowledge graph index with document, section, and table relations."
+            "knowledge graph index with document, section, and table relations, then rewrites Option 5 questions "
+            "into likely zoning/code terminology before graph retrieval."
         )
         st.graphviz_chart(
             """
@@ -741,10 +742,11 @@ def render_about_tab() -> None:
                 embed [label="Create embeddings"];
                 store [label="Persist in Chroma plus BM25 corpus\\nOption 1, Option 2, or Option 3"];
                 expansion [label="Option 4 reuses local hybrid indexes\\nwith query expansion"];
+                rewrite [label="Option 5 query rewrite\\nlikely zoning/code terminology"];
                 kg [label="Option 5 isolated\\nDocling + LightRAG KG\\nsection/table relations"];
                 pdf -> load -> structure -> split -> embed -> store;
                 store -> expansion;
-                pdf -> kg;
+                pdf -> rewrite -> kg;
             }
             """,
             use_container_width=True,
@@ -767,6 +769,7 @@ def render_about_tab() -> None:
                 expand [label="Option 4:\\nexpand into 5 queries"];
                 expand_context [label="Deterministic\\ncontext expansion"];
                 rerank [label="Cross-encoder reranking\\nOptions 1-4"];
+                rewrite [label="Option 5 query rewrite\\n3 alternate phrasings"];
                 kg [label="LightRAG mixed graph/vector\\nretrieval with reranking"];
                 judge [label="Strict JSON\\nevidence gate"];
                 cite [label="Answer with citations"];
@@ -777,7 +780,7 @@ def render_about_tab() -> None:
                 select5 [label="Option 5"];
                 q -> router -> select;
                 select -> select14 -> expand -> retrieve -> expand_context -> rerank -> judge -> cite;
-                select -> select5 -> kg -> judge;
+                select -> select5 -> rewrite -> kg -> judge;
                 router -> fallback;
                 judge -> fallback -> cite;
                 judge -> abstain;
@@ -796,6 +799,7 @@ def render_about_tab() -> None:
         [
             {"Layer": "Frontend", "What it does": "Provides a simple chat UI and displays sources.", "Tech": "Streamlit"},
             {"Layer": "Router", "What it does": "Classifies whether the query may need local docs, web search, or both.", "Tech": "LangChain + LLM"},
+            {"Layer": "Option 5 query rewrite", "What it does": "Preserves the original question and adds three likely zoning/code phrasings before LightRAG retrieval.", "Tech": f"{settings.llm_provider}: {runtime_model}"},
             {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Chroma, local BM25 fusion, query expansion, or LightRAG mix"},
             {"Layer": "Context expansion", "What it does": "Adds same-document previous/current/next chunks before adequacy checks.", "Tech": "JSONL chunk sidecars + deterministic rules"},
             {"Layer": "Reranker", "What it does": "Reorders expanded Option 1-4 context blocks before evidence checks; Option 5 reranks inside LightRAG.", "Tech": f"SentenceTransformers CrossEncoder: {settings.reranker_model}"},
@@ -819,8 +823,9 @@ def render_about_tab() -> None:
         "uses Docling chunks with local BM25 keyword retrieval and Chroma vector retrieval, which can help compare "
         "keyword-heavy and semantic retrieval behavior. Option 4 adds LLM query expansion before local hybrid retrieval, which can "
         "improve recall for underspecified or vocabulary-sensitive code questions at the cost of extra latency. "
-        "Option 5 uses a separately stored RAG-Anything/LightRAG knowledge graph with mixed-mode retrieval and explicit "
-        "document-section/table relations from Docling Markdown."
+        "Option 5 uses a separately stored RAG-Anything/LightRAG knowledge graph with mixed-mode retrieval, explicit "
+        "document-section/table relations from Docling Markdown, and an Option 5-only query rewrite that translates "
+        "user wording into likely code or zoning terminology for retrieval."
     )
     st.write(
         "Evaluation metrics are measured against an independent 50-question golden dataset in "

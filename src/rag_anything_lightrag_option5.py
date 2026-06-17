@@ -23,9 +23,10 @@ from types import MethodType
 from typing import Any
 
 from langchain_core.documents import Document
+from langchain_core.prompts import ChatPromptTemplate
 from lightrag.utils import compute_mdhash_id
 
-from src.config import Settings, get_settings
+from src.config import Settings, get_chat_model, get_settings
 from src.retriever import RetrievedSource
 
 
@@ -307,9 +308,10 @@ async def _search_option5_async(
 ) -> tuple[list[Document], list[RetrievedSource]]:
     rag = await _create_rag_anything(settings)
     top_k = k or settings.lightrag_top_k
+    retrieval_query = await asyncio.to_thread(_rewrite_option5_query, query, settings)
     try:
         result = await rag.aquery(
-            query,
+            retrieval_query,
             mode=settings.lightrag_mode,
             only_need_context=True,
             top_k=top_k,
@@ -322,7 +324,7 @@ async def _search_option5_async(
     except TypeError:
         # Older RAG-Anything versions accept only question/mode and pass fewer
         # LightRAG QueryParam knobs through their wrapper.
-        result = await rag.aquery(query, mode=settings.lightrag_mode)
+        result = await rag.aquery(retrieval_query, mode=settings.lightrag_mode)
     finally:
         await _finalize_rag(rag)
 
@@ -339,6 +341,9 @@ async def _search_option5_async(
             "backend": "lightrag",
             "collection_slug": "rag_anything_lightrag_option5",
             "retrieval_mode": settings.lightrag_mode,
+            "original_query": query,
+            "retrieval_query": retrieval_query,
+            "query_rewrite_enabled": settings.option5_query_rewrite_enabled,
             "source_type": "local",
         },
     )
@@ -349,6 +354,99 @@ async def _search_option5_async(
         snippet=context[:350].replace("\n", " ").strip(),
     )
     return [doc], [source]
+
+
+def _rewrite_option5_query(query: str, settings: Settings) -> str:
+    """Rewrite user wording into likely zoning/code terminology for graph retrieval."""
+
+    if not settings.option5_query_rewrite_enabled:
+        return query
+
+    alternate_count = max(1, min(settings.option5_query_rewrite_alternates, 5))
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "You rewrite user questions for Cobb County building, fire, zoning, and land-use retrieval.\n"
+                "Preserve the user's meaning exactly. Do not answer the question. Do not add facts, numbers, "
+                "requirements, code sections, or conclusions.\n"
+                "Do not add temporal qualifiers such as current, latest, active, adopted, or effective-date unless "
+                "the original question asks for them.\n"
+                "Use likely terminology that may appear in ordinances, zoning tables, building codes, fire codes, "
+                "permit procedures, and inspection documents.\n"
+                "Return only valid JSON with this shape:\n"
+                '{{"alternate_phrasings": ["...", "...", "..."]}}',
+            ),
+            (
+                "human",
+                "Original question:\n{query}\n\n"
+                "Rewrite this query using likely zoning/code terminology. Preserve meaning. "
+                "Add {alternate_count} alternate phrasings.",
+            ),
+        ]
+    )
+
+    try:
+        llm = get_chat_model(temperature=0.0)
+        response = (prompt | llm).invoke(
+            {"query": query, "alternate_count": alternate_count}
+        )
+        content = getattr(response, "content", str(response)).strip()
+        data = _parse_json_object(content)
+        alternates = _clean_alternate_phrasings(
+            data.get("alternate_phrasings"),
+            original_query=query,
+            limit=alternate_count,
+        )
+    except Exception as exc:
+        logger.warning("Option 5 query rewrite failed; using original query: %s", exc)
+        return query
+
+    if not alternates:
+        return query
+
+    rewritten_query = "\n".join(
+        [
+            f"Original question: {query}",
+            "Alternate zoning/code phrasings for retrieval:",
+            *(f"- {alternate}" for alternate in alternates),
+        ]
+    )
+    logger.info(
+        "Option 5 query rewrite added %s alternate phrasings for LightRAG retrieval.",
+        len(alternates),
+    )
+    return rewritten_query
+
+
+def _parse_json_object(content: str) -> dict[str, Any]:
+    if content.startswith("```"):
+        content = re.sub(r"^```(?:json)?", "", content).strip()
+        content = re.sub(r"```$", "", content).strip()
+    match = re.search(r"\{.*\}", content, flags=re.DOTALL)
+    if match:
+        content = match.group(0)
+    data = json.loads(content)
+    return data if isinstance(data, dict) else {}
+
+
+def _clean_alternate_phrasings(value: Any, original_query: str, limit: int) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    seen = {original_query.strip().lower()}
+    alternates: list[str] = []
+    for item in value:
+        text = " ".join(str(item or "").split())
+        if not text:
+            continue
+        normalized = text.lower()
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        alternates.append(text[:300])
+        if len(alternates) >= limit:
+            break
+    return alternates
 
 
 async def _create_rag_anything(settings: Settings):

@@ -217,6 +217,12 @@ class Settings:
     lightrag_max_relation_tokens: int = field(default_factory=lambda: _env_int("LIGHTRAG_MAX_RELATION_TOKENS", "8000"))
     lightrag_max_total_tokens: int = field(default_factory=lambda: _env_int("LIGHTRAG_MAX_TOTAL_TOKENS", "30000"))
     option5_context_max_chars: int = field(default_factory=lambda: _env_int("OPTION5_CONTEXT_MAX_CHARS", "60000"))
+    option5_query_rewrite_enabled: bool = field(
+        default_factory=lambda: _env_bool("OPTION5_QUERY_REWRITE_ENABLED", "true")
+    )
+    option5_query_rewrite_alternates: int = field(
+        default_factory=lambda: _env_int("OPTION5_QUERY_REWRITE_ALTERNATES", "3")
+    )
     lightrag_rerank_enabled: bool = field(default_factory=lambda: _env_bool("LIGHTRAG_RERANK_ENABLED", "true"))
     lightrag_rerank_model: str = field(
         default_factory=lambda: _env_str("LIGHTRAG_RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L6-v2")
