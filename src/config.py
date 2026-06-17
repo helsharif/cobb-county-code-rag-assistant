@@ -12,6 +12,9 @@ from dotenv import load_dotenv
 ROOT_DIR = Path(__file__).resolve().parents[1]
 os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
 os.environ.setdefault("CHROMA_ANONYMIZED_TELEMETRY", "False")
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
 load_dotenv(ROOT_DIR / ".env")
 
 ORIGINAL_COLLECTION_NAME = "cobb_code_docs_original"
@@ -141,6 +144,11 @@ class Settings:
     context_neighbor_window: int = field(default_factory=lambda: _env_int("CONTEXT_NEIGHBOR_WINDOW", "1"))
     context_max_expanded_docs: int = field(default_factory=lambda: _env_int("CONTEXT_MAX_EXPANDED_DOCS", "8"))
     context_max_chars: int = field(default_factory=lambda: _env_int("CONTEXT_MAX_CHARS", "18000"))
+    reranker_enabled: bool = field(default_factory=lambda: _env_bool("RERANKER_ENABLED", "true"))
+    reranker_model: str = field(default_factory=lambda: _env_str("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L6-v2"))
+    reranker_top_n: int = field(default_factory=lambda: _env_int("RERANKER_TOP_N", "8"))
+    reranker_batch_size: int = field(default_factory=lambda: _env_int("RERANKER_BATCH_SIZE", "16"))
+    reranker_min_score: float = field(default_factory=lambda: _env_float("RERANKER_MIN_SCORE", "0.0"))
     eval_judge_model: str = field(default_factory=lambda: _env_str("EVAL_JUDGE_MODEL", "gpt-5.1"))
     eval_judge_delay_seconds: float = field(default_factory=lambda: _env_float("EVAL_JUDGE_DELAY_SECONDS", "1.0"))
     eval_judge_max_retries: int = field(default_factory=lambda: _env_int("EVAL_JUDGE_MAX_RETRIES", "8"))
@@ -255,6 +263,9 @@ def get_settings() -> Settings:
         os.environ.setdefault("SERPAPI_API_KEY", settings.serpapi_api_key)
     os.environ.setdefault("ANONYMIZED_TELEMETRY", "False")
     os.environ.setdefault("CHROMA_ANONYMIZED_TELEMETRY", "False")
+    os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+    os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     tiktoken_cache_dir = settings.root_dir / ".tiktoken_cache"
     tiktoken_cache_dir.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(tiktoken_cache_dir))

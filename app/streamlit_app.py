@@ -707,7 +707,8 @@ def render_about_tab() -> None:
     st.write(
         "After initial retrieval, the app deterministically expands each hit with same-document neighboring chunks only: "
         "the previous chunk, the retrieved chunk, and the next chunk. It preserves raw retrieval priority before applying "
-        "the context budget, which keeps lower-ranked long documents from pushing the best evidence out of the adequacy gate."
+        "the context budget, then reranks Options 1-4 with the same CrossEncoder model family used by Option 5 before "
+        "the adequacy gate checks the evidence."
     )
 
     st.image(
@@ -765,12 +766,18 @@ def render_about_tab() -> None:
                 retrieve [label="Retrieve local chunks"];
                 expand [label="Option 4:\\nexpand into 5 queries"];
                 expand_context [label="Deterministic\\ncontext expansion"];
+                rerank [label="Cross-encoder reranking\\nOptions 1-4"];
+                kg [label="LightRAG mixed graph/vector\\nretrieval with reranking"];
                 judge [label="Strict JSON\\nevidence gate"];
                 cite [label="Answer with citations"];
                 abstain [label="Conservative\\nabstention"];
                 fallback [label="Search web if needed"];
                 select [label="Selected backend\\nOption 1, 2, 3, 4, or 5"];
-                q -> router -> select -> expand -> retrieve -> expand_context -> judge -> cite;
+                select14 [label="Options 1-4"];
+                select5 [label="Option 5"];
+                q -> router -> select;
+                select -> select14 -> expand -> retrieve -> expand_context -> rerank -> judge -> cite;
+                select -> select5 -> kg -> judge;
                 router -> fallback;
                 judge -> fallback -> cite;
                 judge -> abstain;
@@ -791,6 +798,7 @@ def render_about_tab() -> None:
             {"Layer": "Router", "What it does": "Classifies whether the query may need local docs, web search, or both.", "Tech": "LangChain + LLM"},
             {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Chroma, local BM25 fusion, query expansion, or LightRAG mix"},
             {"Layer": "Context expansion", "What it does": "Adds same-document previous/current/next chunks before adequacy checks.", "Tech": "JSONL chunk sidecars + deterministic rules"},
+            {"Layer": "Reranker", "What it does": "Reorders expanded Option 1-4 context blocks before evidence checks; Option 5 reranks inside LightRAG.", "Tech": f"SentenceTransformers CrossEncoder: {settings.reranker_model}"},
             {"Layer": "Agent logic", "What it does": "Combines router signal, retrieval scores, expanded context, and a strict JSON evidence gate.", "Tech": "LangChain"},
             {"Layer": "Generation", "What it does": "Synthesizes a short answer from retrieved evidence only.", "Tech": f"{settings.llm_provider}: {runtime_model}"},
             {"Layer": "Deployment", "What it does": "Runs locally, in Docker, or on Streamlit Community Cloud.", "Tech": "Docker + Streamlit"},
@@ -829,8 +837,10 @@ def render_about_tab() -> None:
     st.write(
         "Docling improves document parsing, while deterministic context expansion improves what the gate sees after retrieval. "
         "Retrieved chunks are expanded only with same-document neighboring chunks, and Docling modes use Docling-generated "
-        "chunks only. The app does not use full-page expansion or PyPDF fallback content in Docling modes. The answer model "
-        "still answers only when the expanded context explicitly supports the requested fact."
+        "chunks only. For Options 1-4, a CrossEncoder reranker then chooses the strongest expanded context blocks before "
+        "the strict adequacy gate. Option 5 uses LightRAG's configured reranker during mixed-mode graph/vector retrieval. "
+        "The app does not use full-page expansion or PyPDF fallback content in Docling modes. The answer model still answers "
+        "only when the reranked context explicitly supports the requested fact."
     )
 
     st.subheader("Guardrails")

@@ -2,7 +2,7 @@
 
 ## High-Level Flowchart Blueprint
 
-Purpose: use this file as a clear, reviewer-friendly guide for creating a presentation flowchart image. The chart should explain what the app does, how a user question moves through the system, and how the four retrieval configurations differ.
+Purpose: use this file as a clear, reviewer-friendly guide for creating a presentation flowchart image. The chart should explain what the app does, how a user question moves through the system, and how the five retrieval configurations differ.
 
 Recommended visual style:
 
@@ -32,7 +32,7 @@ Recommended visual style:
 
 - Chat interface receives the question.
 - Displays the response, sources, and retrieval mode.
-- Lets the user choose one of four retrieval configurations in **Settings & Eval**.
+- Lets the user choose one of five retrieval configurations in **Settings & Eval**.
 - Provides evaluation metrics for each configuration.
 
 ---
@@ -53,6 +53,7 @@ Recommended visual style:
 - Orchestrates the full workflow.
 - Runs the selected retrieval configuration.
 - Expands retrieved context using deterministic neighboring chunks.
+- Reranks Options 1-4 expanded context blocks with a CrossEncoder before evidence checking.
 - Checks whether the retrieved evidence is adequate.
 - Uses web search only when needed.
 - Generates a grounded answer only when evidence supports it.
@@ -83,7 +84,14 @@ Recommended visual style:
 - The app does **not** use full-page expansion.
 - Docling modes do **not** fall back to PyPDF text.
 
-**Step 7: Evidence Adequacy Gate**
+**Step 7: Cross-Encoder Reranking**
+
+- Options 1-4 rerank expanded context blocks with `cross-encoder/ms-marco-MiniLM-L6-v2`.
+- The reranker scores question/context pairs and keeps the strongest evidence blocks.
+- Option 5 uses LightRAG's configured reranker inside mixed-mode graph/vector retrieval instead of being reranked again by the agent.
+- This gives the adequacy gate the strongest available evidence rather than only the original retrieval order.
+
+**Step 8: Evidence Adequacy Gate**
 
 - A strict evidence checker decides whether the expanded context contains the exact fact needed to answer.
 - For technical details, the exact value must appear in the context.
@@ -107,7 +115,7 @@ Recommended visual style:
 
 ### Layer 4: Web Fallback
 
-**Step 8: SerpAPI Web Search**
+**Step 9: SerpAPI Web Search**
 
 - Used when local documents are weak, incomplete, outdated, or the router requests current verification.
 - Searches public web sources.
@@ -118,7 +126,7 @@ Recommended visual style:
 
 ### Layer 5: Response and Output
 
-**Step 9: Grounded Answer**
+**Step 10: Grounded Answer**
 
 - Generates a concise answer using only supplied context.
 - Keeps responses to 2-3 short paragraphs.
@@ -130,7 +138,7 @@ Recommended visual style:
 I could not find a reliable answer in the available documents or web sources.
 ```
 
-**Step 10: Sources and Guardrails**
+**Step 11: Sources and Guardrails**
 
 - Displays citations in the app.
 - Shows whether the answer used:
@@ -155,6 +163,7 @@ Use this section as the right-side comparison table in the flowchart.
 | 2 | Docling + Chromadb | Layout-aware dense vector search | Uses Docling to parse PDFs into cleaner structured text before chunking, embedding, and Chroma retrieval. | Layout-heavy PDFs, tables, headings, lists, and regulatory documents |
 | 3 | Docling + Chroma + BM25 Hybrid Search | Dense vector + keyword search | Combines Docling Chroma semantic retrieval with BM25 keyword retrieval, then fuses rankings using Reciprocal Rank Fusion. | Exact technical terms, code sections, and keyword-heavy regulatory questions |
 | 4 | Docling + Chroma + Query Expansion + BM25 Hybrid Search | Multi-query hybrid search | Expands the original question into five total retrieval queries, runs hybrid retrieval for each, deduplicates, and fuses results. | Complex, underspecified, or vocabulary-sensitive questions |
+| 5 | RAG-Anything + LightRAG KG Search | Knowledge graph + vector retrieval | Uses RAG-Anything/Docling to build an isolated LightRAG knowledge graph and queries it in mixed graph/vector mode with LightRAG reranking. | Section relationships, table-aware retrieval, and graph-style document context |
 
 ---
 
@@ -164,7 +173,7 @@ This can be shown as a smaller bottom or side panel.
 
 **Settings & Eval Dashboard**
 
-- Lets users switch among the four retrieval options.
+- Lets users switch among the five retrieval options.
 - Shows persisted evaluation metrics for each option.
 - Runs evaluation against a fixed golden dataset.
 
@@ -208,14 +217,18 @@ flowchart TD
     D --> E2["Option 2: Docling + Chroma"]
     D --> E3["Option 3: Docling + Chroma + BM25"]
     D --> E4["Option 4: Query expansion + hybrid search"]
+    D --> E5["Option 5: RAG-Anything + LightRAG KG"]
 
     E1 --> F["Retrieved local chunks"]
     E2 --> F
     E3 --> F
     E4 --> F
+    E5 --> KG["LightRAG graph/vector context with reranking"]
 
     F --> G["Neighbor context expansion"]
-    G --> H["Strict evidence adequacy gate"]
+    G --> R["Cross-encoder reranking for Options 1-4"]
+    R --> H["Strict evidence adequacy gate"]
+    KG --> H
     H --> I{"Exact answer supported?"}
 
     I -->|Yes| J["Generate grounded answer"]
@@ -244,6 +257,7 @@ For a presentation graphic, use five large numbered bands:
 3. **Retrieval and Evidence Workflow**
    - Local RAG Retrieval
    - Neighbor Context Expansion
+   - Cross-Encoder Reranking
    - Evidence Adequacy Gate
 
 4. **Web Fallback**
@@ -269,11 +283,13 @@ Reliability and Evaluation
 Include these keywords in the graphic:
 
 - Local PDFs first
-- Four retrieval modes
+- Five retrieval modes
 - Docling parsing
 - Chroma vector search
 - BM25 hybrid search
 - Query expansion
+- Cross-encoder reranking
+- LightRAG knowledge graph retrieval
 - Neighbor context expansion
 - Strict evidence gate
 - SerpAPI fallback

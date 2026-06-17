@@ -20,6 +20,7 @@ I could not find a reliable answer in the available documents or web sources.
 | 2 | Option 2: Docling + Chromadb | `cobb_code_docs_docling` / `docling_chroma` | Docling layout-aware parsing plus Chroma vector search |
 | 3 | Option 3: Docling + Chroma + BM25 Hybrid Search | `docling_chroma_bm25_hybrid` | Docling chunks retrieved with Chroma vector search and local BM25 keyword search, then fused |
 | 4 | Option 4: Docling + Chroma + Query Expansion + BM25 Hybrid Search | `docling_chroma_bm25_expansion` | Option 3 hybrid retrieval plus LLM query expansion before retrieval |
+| 5 | Option 5: RAG-Anything + LightRAG KG Search | `rag_anything_lightrag_option5` | Isolated RAG-Anything/LightRAG knowledge graph queried in mixed graph/vector mode |
 
 Default retrieval depth:
 
@@ -27,6 +28,7 @@ Default retrieval depth:
 - Options 1 and 2 return the top Chroma results.
 - Option 3 fuses Chroma and BM25 results, then keeps the top `RETRIEVER_K`.
 - Option 4 expands the original query into five total queries, retrieves hybrid results for each, deduplicates, fuses, then keeps the top `RETRIEVER_K`.
+- Option 5 uses `LIGHTRAG_TOP_K` and `LIGHTRAG_CHUNK_TOP_K` for LightRAG mixed-mode graph/vector retrieval.
 
 ## Main User-Facing Flow
 
@@ -40,7 +42,7 @@ Default retrieval depth:
 
 ### Step 2: User Selects Retrieval Configuration
 
-- In the Settings & Eval tab, the user selects one of the four retrieval options.
+- In the Settings & Eval tab, the user selects one of the five retrieval options.
 - The selected option is stored in Streamlit session state.
 - New questions use the selected retrieval pipeline without restarting the app.
 
@@ -163,7 +165,7 @@ Tradeoff:
 
 ## Deterministic Context Expansion
 
-Context expansion runs after initial retrieval or reranking and before the adequacy gate.
+Context expansion runs after initial retrieval and before cross-encoder reranking for Options 1-4.
 
 Current behavior:
 
@@ -201,6 +203,27 @@ Important constraints:
 
 The goal is to reduce false refusals caused by chunk boundaries without allowing long lower-ranked pages or unrelated documents to push higher-ranked evidence out of the context budget.
 
+## Cross-Encoder Reranking
+
+For Options 1-4, expanded local context blocks are reranked before the adequacy gate.
+
+Current behavior:
+
+- `RERANKER_ENABLED=true`
+- `RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L6-v2`
+- `RERANKER_TOP_N=8`
+- `RERANKER_BATCH_SIZE=16`
+- `RERANKER_MIN_SCORE=0.0`
+
+Reranking rule:
+
+- The reranker scores `(question, expanded context block)` pairs.
+- The highest-scoring expanded blocks are kept for adequacy checking and answer generation.
+- Each reranked document records `cross_encoder_model`, `cross_encoder_score`, `pre_rerank_position`, and `pre_rerank_score` in metadata.
+- Option 5 is not reranked again in the agent; LightRAG performs its own configured reranking during mixed-mode retrieval.
+
+The goal is to make the strict adequacy gate inspect the strongest expanded evidence blocks rather than only the original retrieval order.
+
 ## Evidence Adequacy Gate
 
 The current flow is:
@@ -209,8 +232,9 @@ The current flow is:
 2. expand with same-document neighboring chunks only
 3. deduplicate while preserving retrieval-rank order
 4. apply context budget
-5. run the adequacy gate
-6. generate answer only if evidence is adequate
+5. rerank Options 1-4 expanded context blocks with the CrossEncoder
+6. run the adequacy gate
+7. generate answer only if evidence is adequate
 
 The adequacy gate is a strict evidence sufficiency checker. It does not answer the user question. It decides whether the supplied evidence contains the exact fact needed to answer.
 
@@ -580,7 +604,8 @@ flowchart TD
 
     E --> X["Neighbor-only context expansion"]
     X --> Y["Preserve retrieval rank order and apply context budget"]
-    Y --> F["Strict adequacy gate"]
+    Y --> RR["Cross-encoder reranking for Options 1-4"]
+    RR --> F["Strict adequacy gate"]
     F --> G{"Exact answer present?"}
     G -->|Yes| R["Grounded answer generation"]
     G -->|No| W{"Web fallback appropriate?"}

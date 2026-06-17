@@ -194,6 +194,7 @@ Key steps:
 - Evaluation: LangSmith experiment scores persisted per vector store for faithfulness, answer relevance, context precision, and context recall
 - Retrieval scoring: User questions are matched against indexed chunks
 - Context expansion: Retrieved chunks are deterministically expanded with same-document neighboring chunks before evidence checks
+- Reranking: Options 1-4 rerank expanded context blocks with `cross-encoder/ms-marco-MiniLM-L6-v2` before the evidence gate; Option 5 reranks inside LightRAG
 - Evidence thresholding: Weak retrieval triggers fallback web search
 - Strict evidence gate: Before generation, a JSON adequacy checker verifies that the supplied context contains an exact supporting quote for the requested fact
 
@@ -240,9 +241,14 @@ LangChain RAG controller
     |       v
     |   Options 1-4: deterministic neighbor expansion
     |   (retrieved chunk plus chunk_index -1 and +1)
+    |       |
+    |       v
+    |   Options 1-4: CrossEncoder reranking
+    |   before evidence adequacy checking
     |
     |   Option 5: LightRAG graph/vector context
     |   from the isolated Option 5 working directory
+    |   with LightRAG reranking
     |
     +--> Evidence quality check
             |
@@ -264,6 +270,7 @@ Agent behavior:
 - Uses the selected Chroma collection or local hybrid retrieval strategy from the Settings & Eval tab
 - Still retrieves local documents for Cobb County code questions
 - Expands retrieved chunks before adequacy checking so nearby checklist items, table rows, and bullet values remain visible
+- Reranks expanded Options 1-4 context with a local CrossEncoder before the adequacy gate
 - Uses relevance scoring and a strict JSON evidence adequacy gate
 - Requires an exact supporting quote before generation for numeric, code, inspection, permit, and procedural questions
 - Keeps deterministic keyword/date routing as a backup
@@ -512,7 +519,7 @@ Build both Chroma-backed collections:
 python -m src.ingestion --rebuild --pipeline both
 ```
 
-Build all physical indexes needed by the four retrieval backends, including the Docling Chroma collection and local BM25 corpus used by Options 3 and 4:
+Build all physical indexes needed by Options 1-4, including the Docling Chroma collection and local BM25 corpus used by Options 3 and 4:
 
 ```bash
 python -m src.ingestion --rebuild --pipeline all
@@ -570,8 +577,9 @@ Backend names:
 - `cobb_code_docs_docling`: Docling-enhanced layout-aware PDF parsing
 - `docling_chroma_bm25_hybrid`: Docling-enhanced Chroma collection plus persisted local BM25 corpus
 - `docling_chroma_bm25_expansion`: Option 4 retrieval mode that reuses the Chroma + BM25 hybrid indexes and adds LLM query expansion
+- `rag_anything_lightrag_option5`: Option 5 retrieval mode that uses the isolated RAG-Anything/LightRAG knowledge graph
 
-Ingestion also writes deterministic context-expansion sidecars under `context_store/`. These JSONL files store chunk text by `doc_id`, source, backend/parser, page metadata, and chunk index. At runtime, the app retrieves small chunks for search quality, then expands each retrieved hit with only same-document neighboring chunks: `chunk_index - 1`, the retrieved chunk, and `chunk_index + 1`. Expansion preserves raw retrieval priority globally, sorts only within each retrieved group by chunk index, deduplicates by stable metadata, and applies the context budget after retrieval-priority ordering. Docling modes use Docling-generated chunks only; they do not use PyPDF fallback content or full-page/page-level expansion. This reduces false refusals caused by truncated chunk boundaries without allowing long lower-ranked pages to push higher-ranked evidence out of the adequacy gate.
+Ingestion also writes deterministic context-expansion sidecars under `context_store/`. These JSONL files store chunk text by `doc_id`, source, backend/parser, page metadata, and chunk index. At runtime, the app retrieves small chunks for search quality, then expands each retrieved hit with only same-document neighboring chunks: `chunk_index - 1`, the retrieved chunk, and `chunk_index + 1`. Expansion preserves raw retrieval priority globally, sorts only within each retrieved group by chunk index, deduplicates by stable metadata, and applies the context budget after retrieval-priority ordering. Options 1-4 then rerank the expanded context blocks with a local SentenceTransformers CrossEncoder before the adequacy gate. Docling modes use Docling-generated chunks only; they do not use PyPDF fallback content or full-page/page-level expansion. This reduces false refusals caused by truncated chunk boundaries without allowing long lower-ranked pages to push higher-ranked evidence out of the adequacy gate.
 
 After pulling this feature, rebuild the desired ingestion pipelines so `context_store/` is created alongside `vectorstore/` and `bm25_index/`.
 
@@ -594,6 +602,14 @@ Context expansion:
 - `CONTEXT_MAX_EXPANDED_DOCS=8`: cap expanded context blocks
 - `CONTEXT_MAX_CHARS=18000`: cap total local context passed to adequacy checking and generation
 
+Reranking for Options 1-4:
+
+- `RERANKER_ENABLED=true`: enable local CrossEncoder reranking after context expansion
+- `RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L6-v2`: use the same model family configured for Option 5 LightRAG reranking
+- `RERANKER_TOP_N=8`: keep the top reranked expanded context blocks
+- `RERANKER_BATCH_SIZE=16`: CrossEncoder scoring batch size
+- `RERANKER_MIN_SCORE=0.0`: optional raw CrossEncoder score floor; `0.0` disables filtering
+
 ### 7. Run the Streamlit app
 
 ```bash
@@ -612,7 +628,7 @@ The committed Streamlit config does not pin a port so Streamlit Community Cloud 
 streamlit run app/streamlit_app.py --server.port=8502
 ```
 
-Use the Settings & Eval tab to switch between **Option 1: PyPDF + Chromadb**, **Option 2: Docling + Chromadb**, **Option 3: Docling + Chroma + BM25 Hybrid Search**, and **Option 4: Docling + Chroma + Query Expansion + BM25 Hybrid Search**. Switching affects new questions without requiring an app restart.
+Use the Settings & Eval tab to switch between **Option 1: PyPDF + Chromadb**, **Option 2: Docling + Chromadb**, **Option 3: Docling + Chroma + BM25 Hybrid Search**, **Option 4: Docling + Chroma + Query Expansion + BM25 Hybrid Search**, and **Option 5: RAG-Anything + LightRAG KG Search**. Switching affects new questions without requiring an app restart.
 
 ### 8. Run LangSmith evaluation
 
@@ -634,9 +650,10 @@ eval_results/pypdf_chroma_results.json
 eval_results/docling_chroma_results.json
 eval_results/docling_chroma_bm25_hybrid_results.json
 eval_results/docling_chroma_bm25_expansion_results.json
+eval_results/rag_anything_lightrag_option5_results.json
 ```
 
-The current naming convention is `{slug}_results.json`, where `pypdf_chroma` maps to Option 1, `docling_chroma` maps to Option 2, `docling_chroma_bm25_hybrid` maps to Option 3, and `docling_chroma_bm25_expansion` maps to Option 4. Background status files follow the same slug pattern under `eval_status/` as `{slug}_status.json`.
+The current naming convention is `{slug}_results.json`, where `pypdf_chroma` maps to Option 1, `docling_chroma` maps to Option 2, `docling_chroma_bm25_hybrid` maps to Option 3, `docling_chroma_bm25_expansion` maps to Option 4, and `rag_anything_lightrag_option5` maps to Option 5. Background status files follow the same slug pattern under `eval_status/` as `{slug}_status.json`.
 
 Metrics shown:
 

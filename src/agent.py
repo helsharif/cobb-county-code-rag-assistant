@@ -12,6 +12,7 @@ from langchain_core.prompts import ChatPromptTemplate
 
 from src.config import ORIGINAL_COLLECTION_NAME, RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME, get_chat_model, get_settings
 from src.context_expansion import expand_retrieved_docs
+from src.reranker import rerank_documents
 from src.retriever import RetrievedSource, has_sufficient_retrieval, search_documents
 from src.tools import web_search
 
@@ -172,10 +173,12 @@ class CobbCountyRAGAgent:
             local_sources,
             collection_name=self.collection_name,
         )
+        if self.collection_name != RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME:
+            docs, local_sources = rerank_documents(question, docs, local_sources)
         local_context = self._format_local_context(docs, local_sources)
         local_is_sufficient = has_sufficient_retrieval(local_sources)
         logger.info(
-            "Retrieved %s chunks and expanded to %s context blocks for collection %s.",
+            "Retrieved %s chunks and prepared %s context blocks for collection %s.",
             len(original_docs),
             len(docs),
             self.collection_name,
