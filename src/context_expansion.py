@@ -27,6 +27,7 @@ from typing import Any
 from langchain_core.documents import Document
 
 from src.config import COLLECTION_SLUGS, Settings, get_settings
+from src.config import RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME
 from src.retriever import RetrievedSource
 
 
@@ -97,6 +98,13 @@ def expand_retrieved_docs(
     """
 
     settings = settings or get_settings()
+
+    if collection_name == RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME:
+        return _trim_option5_context(
+            retrieved_docs,
+            retrieved_sources,
+            max_chars=max_chars if max_chars is not None else settings.context_max_chars,
+        )
 
     if not settings.context_expansion_enabled:
         logger.debug("Context expansion disabled by settings.")
@@ -245,6 +253,46 @@ def expand_retrieved_docs(
         ],
     )
 
+    return final_docs, final_sources
+
+
+def _trim_option5_context(
+    retrieved_docs: list[Document],
+    retrieved_sources: list[RetrievedSource],
+    max_chars: int,
+) -> tuple[list[Document], list[RetrievedSource]]:
+    """Option 5 already returns a LightRAG context bundle, not chunk IDs."""
+
+    final_docs: list[Document] = []
+    final_sources: list[RetrievedSource] = []
+    remaining = max_chars
+    for doc, source in zip(retrieved_docs, retrieved_sources):
+        if remaining <= 0:
+            break
+        text = (doc.page_content or "")[:remaining]
+        if not text.strip():
+            continue
+        metadata = dict(doc.metadata or {})
+        if text != doc.page_content:
+            metadata["truncated_by_context_budget"] = True
+        metadata["expansion_type"] = "lightrag_context"
+        final_docs.append(Document(page_content=text, metadata=metadata))
+        final_sources.append(
+            RetrievedSource(
+                source=source.source,
+                page=source.page,
+                score=source.score,
+                snippet=text[:350].replace("\n", " ").strip(),
+            )
+        )
+        remaining -= len(text)
+
+    logger.info(
+        "Preserved Option 5 LightRAG context as %s block(s) (%s chars, max=%s); neighbor expansion skipped.",
+        len(final_docs),
+        sum(len(doc.page_content or "") for doc in final_docs),
+        max_chars,
+    )
     return final_docs, final_sources
 
 

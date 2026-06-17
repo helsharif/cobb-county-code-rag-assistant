@@ -88,7 +88,7 @@ Current local development corpus:
 
 The `data/README.md` file explains where users should place their own PDFs before rebuilding the vector index. The generated Chroma `vectorstore/` is tracked with Git LFS so Streamlit Community Cloud can load the demo index without private raw PDFs.
 
-The app supports four retrieval backends:
+The app supports five retrieval backends:
 
 | Backend | UI Label | Retrieval Strategy |
 |---|---|---|
@@ -96,10 +96,82 @@ The app supports four retrieval backends:
 | `cobb_code_docs_docling` | Option 2: Docling + Chromadb | Docling layout-aware Markdown conversion with Chroma vector search |
 | `docling_chroma_bm25_hybrid` | Option 3: Docling + Chroma + BM25 Hybrid Search | Docling chunks searched with Chroma vector retrieval and a persisted local BM25 keyword corpus |
 | `docling_chroma_bm25_expansion` | Option 4: Docling + Chroma + Query Expansion + BM25 Hybrid Search | Reuses the Option 3 Chroma + BM25 indexes, expands the original question into five retrieval queries, and fuses deduplicated hybrid results |
+| `rag_anything_lightrag_option5` | Option 5: RAG-Anything + LightRAG KG Search | Uses RAG-Anything/Docling to process document files into an isolated LightRAG knowledge graph with heading/table relations, then queries LightRAG in mixed mode |
 
-Option 1 preserves the original app behavior. Option 2 may improve retrieval quality for layout-heavy PDFs, tables, headings, sections, and regulatory documents. Option 3 adds local hybrid retrieval so keyword-heavy regulatory language and semantic similarity can both contribute to ranking without requiring a separate search server. Option 4 adds one query-expansion LLM call before local hybrid retrieval, which can improve recall for underspecified or vocabulary-sensitive code questions at the cost of additional latency.
+Option 1 preserves the original app behavior. Option 2 may improve retrieval quality for layout-heavy PDFs, tables, headings, sections, and regulatory documents. Option 3 adds local hybrid retrieval so keyword-heavy regulatory language and semantic similarity can both contribute to ranking without requiring a separate search server. Option 4 adds one query-expansion LLM call before local hybrid retrieval, which can improve recall for underspecified or vocabulary-sensitive code questions at the cost of additional latency. Option 5 is isolated from all existing Chroma and BM25 assets and is intended for document-aware knowledge graph retrieval over PDFs, HTML, markdown, text, Office documents, tables, checklists, headings, forms, and procedural material.
 
-Retrieval depth is controlled by `RETRIEVER_K` in `.env`. The default value is `RETRIEVER_K=10`, so all four options pass the top 10 final chunks into answer generation by default. Option 3 retrieves a larger BM25 candidate pool internally with `max(RETRIEVER_K * 4, 20)`, retrieves dense candidates from Chroma, then keeps the top `RETRIEVER_K` chunks after Reciprocal Rank Fusion. Option 4 expands the question into five total queries, retrieves up to `RETRIEVER_K * 2` chunks per expanded query, deduplicates across those results, applies a second fusion pass, and keeps the final top `RETRIEVER_K` chunks.
+Retrieval depth is controlled by `RETRIEVER_K` in `.env` for Options 1-4 and by `LIGHTRAG_TOP_K` / `LIGHTRAG_CHUNK_TOP_K` for Option 5. The default value is `RETRIEVER_K=10`, so Options 1-4 pass the top 10 final chunks into answer generation by default. Option 3 retrieves a larger BM25 candidate pool internally with `max(RETRIEVER_K * 4, 20)`, retrieves dense candidates from Chroma, then keeps the top `RETRIEVER_K` chunks after Reciprocal Rank Fusion. Option 4 expands the question into five total queries, retrieves up to `RETRIEVER_K * 2` chunks per expanded query, deduplicates across those results, applies a second fusion pass, and keeps the final top `RETRIEVER_K` chunks.
+
+### Option 5: RAG-Anything + LightRAG KG Search
+
+Option 5 builds a separate RAG-Anything/LightRAG knowledge graph index. It uses Docling as the parser, keeps table processing enabled, disables OCR/image/equation processing by default, and injects deterministic document-section/table relationships into the graph from Docling Markdown headings and tables. It does not read, delete, rebuild, or overwrite the existing Chroma `vectorstore/`, BM25 `bm25_index/`, or context sidecar folders used by Options 1-4.
+
+Default storage:
+
+```text
+vectorstore/rag_anything_lightrag_option5/
+  lightrag/
+  processed/
+  option5_manifest.json
+  option5_sources.jsonl
+```
+
+Build or update the Option 5 index:
+
+```bash
+python -m src.ingestion --pipeline rag_anything_lightrag_option5
+```
+
+The Option 5 ingestion command reads supported files from `data/`, processes them with RAG-Anything, stores LightRAG graph/vector/document-status artifacts under `vectorstore/rag_anything_lightrag_option5/`, and skips unchanged documents using the local source sidecar when possible. `--rebuild` is intentionally rejected for Option 5 to avoid destructive index deletion. To rebuild Option 5 from scratch without touching other indexes, manually remove only `vectorstore/rag_anything_lightrag_option5/`, then rerun the command above.
+
+Enable and tune Option 5 in `.env`:
+
+```text
+OPTION5_ENABLED=true
+RAG_ANYTHING_OPTION5_STORAGE_DIR=vectorstore/rag_anything_lightrag_option5
+RAG_ANYTHING_OPTION5_OUTPUT_DIR=vectorstore/rag_anything_lightrag_option5/processed
+RAG_ANYTHING_PARSER=docling
+RAG_ANYTHING_PARSE_METHOD=auto
+RAG_ANYTHING_FILE_EXTENSIONS=.pdf,.html,.htm,.md,.txt,.docx,.xlsx
+RAG_ANYTHING_ENABLE_IMAGE_PROCESSING=false
+RAG_ANYTHING_ENABLE_TABLE_PROCESSING=true
+RAG_ANYTHING_ENABLE_EQUATION_PROCESSING=false
+RAG_ANYTHING_SECTION_RELATIONS=true
+RAG_ANYTHING_MAX_CONCURRENT_FILES=3
+RAG_ANYTHING_DOCLING_TABLES=true
+RAG_ANYTHING_RETRY_WITHOUT_TABLES=true
+RAG_ANYTHING_DOCLING_TABLE_MODE=fast
+LIGHTRAG_WORKING_DIR=vectorstore/rag_anything_lightrag_option5/lightrag
+LIGHTRAG_MODE=mix
+LIGHTRAG_TOP_K=10
+LIGHTRAG_CHUNK_TOP_K=10
+LIGHTRAG_MAX_TOTAL_TOKENS=12000
+LIGHTRAG_EMBEDDING_MODEL=text-embedding-3-small
+LIGHTRAG_LLM_MODEL=gpt-4.1-mini
+OPTION5_WEB_FALLBACK_ENABLED=true
+ALLOWED_WEB_DOMAINS=cobbcounty.gov,www.cobbcounty.org,cobbcountyga.gov,dca.georgia.gov,oci.georgia.gov,rules.sos.ga.gov
+ENABLE_PRE_EXTRACTION_CHUNKING=true
+TARGET_EXTRACTION_CHUNK_TOKENS=4000
+MAX_EXTRACTION_CHUNK_TOKENS=7000
+SAVE_OVERSIZED_ITEM_AUDIT=true
+OVERSIZED_ITEM_AUDIT_DIR=vectorstore/rag_anything_lightrag_option5/audit/oversized_items
+```
+
+Query Option 5 by selecting **Option 5: RAG-Anything + LightRAG KG Search** in the Settings & Eval tab. Retrieval uses LightRAG `mix` mode by default, which combines knowledge graph local/global retrieval with vector retrieval where supported.
+
+Before LightRAG extraction, Option 5 estimates token counts for generated document/table chunks and splits oversized items into extraction-safe parts. Split chunks keep source metadata such as source file, content type, original item ID, part number, page/caption context, parent document ID, and parent content item ID. Full oversized originals and split parts are saved under the audit folder with a JSONL manifest so truncation events can be reviewed.
+
+Docling table recognition can fail on unusually complex pages. Option 5 tries Docling table structure extraction in `fast` mode by default and, if a document throws during parsing, retries that document with `tables=False` so the rest of the corpus can continue processing. Set `RAG_ANYTHING_DOCLING_TABLES=false` to skip Docling table-structure recognition entirely for a more conservative build.
+
+Web search remains supplemental. SerpAPI queries are scoped to the configured `ALLOWED_WEB_DOMAINS`, and returned URLs are filtered again before they are passed into answer generation. Keep the allowlist to official Cobb County and Georgia government domains. Web-derived sources are shown as URL sources separately from local Option 5 context.
+
+Validate Option 5 after building:
+
+```bash
+python -m src.validate_option5 --query "What permits are required for residential construction?"
+```
+
+Implementation note: RAG-Anything is used as the primary ingestion/query wrapper and LightRAG is initialized underneath it in the same isolated working directory. The current adapter requests LightRAG context for the app's existing evidence gate. If an installed RAG-Anything version does not expose every LightRAG `QueryParam` knob through `aquery`, the adapter falls back to the supported `aquery(question, mode=...)` call and documents that behavior in code.
 
 ---
 
@@ -148,6 +220,8 @@ Settings selector
     |
     +--> Option 4: docling_chroma_bm25_expansion
     |
+    +--> Option 5: rag_anything_lightrag_option5
+    |
     v
 Lightweight LLM query router
     |
@@ -160,11 +234,15 @@ LangChain RAG controller
     |       |
     |       v
     |   Chroma vector DB, Chroma + BM25 hybrid retrieval,
-    |   or Chroma + BM25 query expansion retrieval
+    |   Chroma + BM25 query expansion retrieval,
+    |   or RAG-Anything + LightRAG mixed-mode KG retrieval
     |       |
     |       v
-    |   Deterministic neighbor expansion
+    |   Options 1-4: deterministic neighbor expansion
     |   (retrieved chunk plus chunk_index -1 and +1)
+    |
+    |   Option 5: LightRAG graph/vector context
+    |   from the isolated Option 5 working directory
     |
     +--> Evidence quality check
             |

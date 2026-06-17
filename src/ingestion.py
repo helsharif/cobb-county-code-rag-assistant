@@ -491,6 +491,13 @@ def context_store_path(slug: str) -> Path:
     return settings.context_store_dir / f"{slug}_chunks.jsonl"
 
 
+def _chunk_source_id(chunk: Document, slug: str) -> str:
+    metadata = chunk.metadata or {}
+    doc_id = str(metadata.get("doc_id") or stable_doc_id(str(metadata.get("source") or "local document")))
+    chunk_index = metadata.get("chunk_index")
+    return f"{slug}::{doc_id}::chunk_{int(chunk_index or 0):04d}"
+
+
 def write_context_stores(chunks: list[Document], slug: str) -> None:
     """Persist chunk text used for deterministic neighbor context expansion."""
 
@@ -503,7 +510,9 @@ def write_context_stores(chunks: list[Document], slug: str) -> None:
             text = chunk.page_content.strip()
             if not text:
                 continue
+            source_id = _chunk_source_id(chunk, slug)
             record = {
+                "source_id": source_id,
                 "doc_id": chunk.metadata.get("doc_id", ""),
                 "source": chunk.metadata.get("source", ""),
                 "source_path": chunk.metadata.get("source_path", ""),
@@ -513,7 +522,9 @@ def write_context_stores(chunks: list[Document], slug: str) -> None:
                 "page_end": chunk.metadata.get("page_end"),
                 "chunk_index": chunk.metadata.get("chunk_index"),
                 "parser_type": chunk.metadata.get("parser_type", ""),
+                "parser": chunk.metadata.get("parser_type", ""),
                 "backend": chunk.metadata.get("backend", ""),
+                "collection_slug": slug,
                 "section": chunk.metadata.get("section", ""),
                 "item_number": chunk.metadata.get("item_number", ""),
                 "text": text,
@@ -634,6 +645,11 @@ PIPELINE_ALIASES = {
     "expansion": "docling_chroma_bm25_expansion",
     "query_expansion": "docling_chroma_bm25_expansion",
     "docling_chroma_bm25_expansion": "docling_chroma_bm25_expansion",
+    "option5": "rag_anything_lightrag_option5",
+    "rag_anything": "rag_anything_lightrag_option5",
+    "lightrag": "rag_anything_lightrag_option5",
+    "rag_anything_lightrag": "rag_anything_lightrag_option5",
+    "rag_anything_lightrag_option5": "rag_anything_lightrag_option5",
     "both": "pypdf_chroma,docling_chroma",
     "all": "pypdf_chroma,docling_chroma_bm25_hybrid",
 }
@@ -692,6 +708,10 @@ def build_vectorstore(rebuild: bool = False, pipeline: str = "pypdf_chroma") -> 
                 "Option 4 uses the same physical Docling Chroma + BM25 corpus as Option 3; building hybrid corpus."
             )
             total += build_docling_chroma_bm25_hybrid(rebuild=rebuild)
+        elif slug == "rag_anything_lightrag_option5":
+            from src.rag_anything_lightrag_option5 import build_option5_index
+
+            total += build_option5_index(rebuild=rebuild, settings=settings)
         else:
             raise ValueError(f"Unsupported ingestion slug: {slug}")
     return total
@@ -731,7 +751,15 @@ def log_effective_ingestion_settings(settings, slugs: list[str]) -> None:
         settings.context_max_expanded_docs,
         settings.context_max_chars,
     )
-    if any(slug in {"docling_chroma", "docling_chroma_bm25_hybrid", "docling_chroma_bm25_expansion"} for slug in slugs):
+    if any(
+        slug
+        in {
+            "docling_chroma",
+            "docling_chroma_bm25_hybrid",
+            "docling_chroma_bm25_expansion",
+        }
+        for slug in slugs
+    ):
         logger.info(
             "Docling settings: DOCLING_ACCELERATOR_DEVICE=%s, DOCLING_NUM_THREADS=%s, "
             "DOCLING_DO_OCR=%s, DOCLING_BATCH_SIZE=%s, DOCLING_MAX_PAGES=%s, "
@@ -750,7 +778,19 @@ def log_effective_ingestion_settings(settings, slugs: list[str]) -> None:
             settings.bm25_index_dir,
             settings.bm25_index_file,
         )
-
+    if "rag_anything_lightrag_option5" in slugs:
+        logger.info(
+            "Option 5 settings: ENABLED=%s, RAG_ANYTHING_OPTION5_STORAGE_DIR=%s, "
+            "LIGHTRAG_WORKING_DIR=%s, OUTPUT_DIR=%s, PARSER=%s, MAX_CONCURRENT_FILES=%s, MODE=%s, TOP_K=%s.",
+            settings.option5_enabled,
+            settings.rag_anything_storage_dir,
+            settings.lightrag_working_dir,
+            settings.rag_anything_output_dir,
+            settings.rag_anything_parser,
+            settings.rag_anything_max_concurrent_files,
+            settings.lightrag_mode,
+            settings.lightrag_top_k,
+        )
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build the Cobb County RAG vector index.")
@@ -760,9 +800,11 @@ def main() -> None:
         default="pypdf_chroma",
         help=(
             "Comma-separated ingestion slugs or aliases. Supported slugs: "
-            "pypdf_chroma, docling_chroma, docling_chroma_bm25_hybrid, docling_chroma_bm25_expansion. "
+            "pypdf_chroma, docling_chroma, docling_chroma_bm25_hybrid, "
+            "docling_chroma_bm25_expansion, rag_anything_lightrag_option5. "
             "Aliases: original, docling, bm25, hybrid, expansion, both, all. "
-            "The expansion slug builds the same Docling Chroma + BM25 corpus used by the hybrid pipeline."
+            "The expansion slug builds the same Docling Chroma + BM25 corpus used by the hybrid pipeline. "
+            "Option 5 writes only to vectorstore/rag_anything_lightrag_option5."
         ),
     )
     parser.add_argument(

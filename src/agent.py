@@ -10,7 +10,7 @@ from datetime import date
 
 from langchain_core.prompts import ChatPromptTemplate
 
-from src.config import ORIGINAL_COLLECTION_NAME, get_chat_model
+from src.config import ORIGINAL_COLLECTION_NAME, RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME, get_chat_model, get_settings
 from src.context_expansion import expand_retrieved_docs
 from src.retriever import RetrievedSource, has_sufficient_retrieval, search_documents
 from src.tools import web_search
@@ -184,6 +184,9 @@ class CobbCountyRAGAgent:
         logger.debug("Expanded retrieved chunks: %s", self._debug_sources(local_sources))
 
         use_web = force_web or route.needs_web or self._should_use_web(question, local_context, local_sources)
+        settings = get_settings()
+        if self.collection_name == RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME and not settings.option5_web_fallback_enabled:
+            use_web = False
         web_context = ""
         web_query = ""
         web_search_error = ""

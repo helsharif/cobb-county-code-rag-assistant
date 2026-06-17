@@ -19,6 +19,7 @@ from src.config import (
     DOCLING_CHROMA_BM25_EXPANSION_COLLECTION_NAME,
     DOCLING_COLLECTION_NAME,
     ORIGINAL_COLLECTION_NAME,
+    RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME,
     Settings,
     get_embeddings,
     get_settings,
@@ -76,6 +77,10 @@ def vectorstore_exists(path: Path | None = None, collection_name: str | None = N
         from src.hybrid_store import bm25_index_exists
 
         return vectorstore_exists(path, DOCLING_COLLECTION_NAME) and bm25_index_exists(settings)
+    if collection_name == RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME:
+        from src.rag_anything_lightrag_option5 import option5_storage_exists
+
+        return option5_storage_exists(settings)
 
     vectorstore_path = path or settings.vectorstore_dir
     if not vectorstore_path.exists() or not any(vectorstore_path.iterdir()):
@@ -121,6 +126,11 @@ def search_documents(
         from src.hybrid_store import search_chroma_bm25_hybrid
 
         return search_chroma_bm25_hybrid(query, k=k, settings=settings)
+
+    if selected_collection == RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME:
+        from src.rag_anything_lightrag_option5 import search_option5
+
+        return search_option5(query, k=k, settings=settings)
 
     if not vectorstore_exists(settings.vectorstore_dir, selected_collection):
         return [], []

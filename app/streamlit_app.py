@@ -28,6 +28,7 @@ from src.config import (  # noqa: E402
     OPTION_2_LABEL,
     OPTION_3_LABEL,
     OPTION_4_LABEL,
+    OPTION_5_LABEL,
     ORIGINAL_COLLECTION_NAME,
     get_settings,
 )
@@ -147,8 +148,10 @@ def render_chat_tab() -> None:
 
     if not cached_vectorstore_exists(collection_name):
         st.warning(
-            f"No local vector index found for `{collection_name}`. Build it with "
-            "`python -m src.ingestion --rebuild --pipeline all`, then restart or refresh the app."
+            f"No local retrieval index found for `{collection_name}`. Build it with "
+            "`python -m src.ingestion --rebuild --pipeline all` for Options 1-4, or "
+            "`python -m src.ingestion --pipeline rag_anything_lightrag_option5` for Option 5, "
+            "then restart or refresh the app."
         )
 
     if "messages" not in st.session_state:
@@ -264,7 +267,6 @@ def render_settings_eval_tab() -> None:
     selected_label = st.radio(
         "Retrieval configuration",
         options=labels,
-        index=labels.index(current_label) if current_label in labels else 0,
         horizontal=False,
         key="backend_label",
         on_change=on_backend_change,
@@ -286,11 +288,18 @@ def render_settings_eval_tab() -> None:
             "Option 3: Docling + Chroma + BM25 Hybrid Search uses the Docling Chroma collection for vector "
             "retrieval plus a local BM25 keyword corpus, then fuses rankings before answer generation."
         )
-    else:
+    elif selected_label == OPTION_4_LABEL:
         st.info(
             "Option 4: Docling + Chroma + Query Expansion + BM25 Hybrid Search reuses the Docling Chroma "
             "and BM25 corpus, expands the original question into five retrieval queries, then fuses and deduplicates "
             "results before answer generation. Latency metrics include the extra expansion LLM call."
+        )
+    elif selected_label == OPTION_5_LABEL:
+        st.info(
+            "Option 5: RAG-Anything + LightRAG KG Search processes document files with Docling, keeps "
+            "table and heading structure, injects section/table relations into an isolated LightRAG knowledge "
+            "graph, then queries it in mixed mode. OCR, standalone image processing, and equation processing "
+            "are disabled by default."
         )
 
     st.code(selected_collection, language="text")
@@ -712,10 +721,11 @@ def render_about_tab() -> None:
     with ingest_col:
         st.markdown("**Index build**")
         st.write(
-            "PDFs under `data/` are indexed into four optional retrieval backends: Option 1 uses the PyPDF-based "
+            "Documents under `data/` are indexed into five optional retrieval backends: Option 1 uses the PyPDF-based "
             "pipeline, Option 2 uses Docling-enhanced parsing that first exports layout-aware Markdown, and Option 3 "
             "uses the Docling Chroma collection with a local BM25 keyword corpus. Option 4 reuses those local indexes "
-            "and adds LLM query expansion at retrieval time."
+            "and adds LLM query expansion at retrieval time. Option 5 builds a separate RAG-Anything/LightRAG "
+            "knowledge graph index with document, section, and table relations."
         )
         st.graphviz_chart(
             """
@@ -723,15 +733,17 @@ def render_about_tab() -> None:
                 graph [rankdir=TB, bgcolor="transparent", pad="0.2"];
                 node [shape=box, style="rounded,filled", color="#94a3b8", fillcolor="#f8fafc", fontname="Arial", fontsize=10];
                 edge [color="#64748b", arrowsize=0.65];
-                pdf [label="Local PDFs"];
-                load [label="PyPDF or Docling\\nPDF parsing"];
+                pdf [label="Local document files"];
+                load [label="PyPDF or Docling\\ndocument parsing"];
                 structure [label="Docling mode:\\nTOC/bookmark ranges\\nwith overlap fallback"];
                 split [label="Chunk text\\nwith overlap"];
                 embed [label="Create embeddings"];
                 store [label="Persist in Chroma plus BM25 corpus\\nOption 1, Option 2, or Option 3"];
                 expansion [label="Option 4 reuses local hybrid indexes\\nwith query expansion"];
+                kg [label="Option 5 isolated\\nDocling + LightRAG KG\\nsection/table relations"];
                 pdf -> load -> structure -> split -> embed -> store;
                 store -> expansion;
+                pdf -> kg;
             }
             """,
             use_container_width=True,
@@ -757,7 +769,7 @@ def render_about_tab() -> None:
                 cite [label="Answer with citations"];
                 abstain [label="Conservative\\nabstention"];
                 fallback [label="Search web if needed"];
-                select [label="Selected backend\\nOption 1, 2, 3, or 4"];
+                select [label="Selected backend\\nOption 1, 2, 3, 4, or 5"];
                 q -> router -> select -> expand -> retrieve -> expand_context -> judge -> cite;
                 router -> fallback;
                 judge -> fallback -> cite;
@@ -777,7 +789,7 @@ def render_about_tab() -> None:
         [
             {"Layer": "Frontend", "What it does": "Provides a simple chat UI and displays sources.", "Tech": "Streamlit"},
             {"Layer": "Router", "What it does": "Classifies whether the query may need local docs, web search, or both.", "Tech": "LangChain + LLM"},
-            {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Chroma, local BM25 fusion, or query expansion"},
+            {"Layer": "Retriever", "What it does": "Finds relevant chunks from the selected local index.", "Tech": "Chroma, local BM25 fusion, query expansion, or LightRAG mix"},
             {"Layer": "Context expansion", "What it does": "Adds same-document previous/current/next chunks before adequacy checks.", "Tech": "JSONL chunk sidecars + deterministic rules"},
             {"Layer": "Agent logic", "What it does": "Combines router signal, retrieval scores, expanded context, and a strict JSON evidence gate.", "Tech": "LangChain"},
             {"Layer": "Generation", "What it does": "Synthesizes a short answer from retrieved evidence only.", "Tech": f"{settings.llm_provider}: {runtime_model}"},
@@ -793,12 +805,14 @@ def render_about_tab() -> None:
 
     st.subheader("Settings and Evaluation")
     st.write(
-        "The Settings & Eval tab lets users choose between four retrieval modes and inspect persisted LangSmith metrics. "
+        "The Settings & Eval tab lets users choose between five retrieval modes and inspect persisted LangSmith metrics. "
         "Option 1: PyPDF + Chromadb uses the first PDF text extraction pipeline. Option 2: Docling + Chromadb uses "
         "layout-aware parsing before content is embedded into Chroma. Option 3: Docling + Chroma + BM25 Hybrid Search "
         "uses Docling chunks with local BM25 keyword retrieval and Chroma vector retrieval, which can help compare "
         "keyword-heavy and semantic retrieval behavior. Option 4 adds LLM query expansion before local hybrid retrieval, which can "
-        "improve recall for underspecified or vocabulary-sensitive code questions at the cost of extra latency."
+        "improve recall for underspecified or vocabulary-sensitive code questions at the cost of extra latency. "
+        "Option 5 uses a separately stored RAG-Anything/LightRAG knowledge graph with mixed-mode retrieval and explicit "
+        "document-section/table relations from Docling Markdown."
     )
     st.write(
         "Evaluation metrics are measured against an independent 50-question golden dataset in "
@@ -844,11 +858,6 @@ def render_about_tab() -> None:
 selected_page = st.radio(
     "Navigation",
     PAGE_OPTIONS,
-    index=PAGE_OPTIONS.index(
-        st.session_state.get("selected_page", "Ask")
-        if st.session_state.get("selected_page", "Ask") in PAGE_OPTIONS
-        else "Ask"
-    ),
     horizontal=True,
     label_visibility="collapsed",
     key="selected_page",

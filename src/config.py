@@ -18,21 +18,25 @@ ORIGINAL_COLLECTION_NAME = "cobb_code_docs_original"
 DOCLING_COLLECTION_NAME = "cobb_code_docs_docling"
 DOCLING_CHROMA_BM25_COLLECTION_NAME = "docling_chroma_bm25_hybrid"
 DOCLING_CHROMA_BM25_EXPANSION_COLLECTION_NAME = "docling_chroma_bm25_expansion"
+RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME = "rag_anything_lightrag_option5"
 OPTION_1_LABEL = "Option 1: PyPDF + Chromadb"
 OPTION_2_LABEL = "Option 2: Docling + Chromadb"
 OPTION_3_LABEL = "Option 3: Docling + Chroma + BM25 Hybrid Search"
 OPTION_4_LABEL = "Option 4: Docling + Chroma + Query Expansion + BM25 Hybrid Search"
+OPTION_5_LABEL = "Option 5: RAG-Anything + LightRAG KG Search"
 COLLECTION_OPTIONS = {
     OPTION_1_LABEL: ORIGINAL_COLLECTION_NAME,
     OPTION_2_LABEL: DOCLING_COLLECTION_NAME,
     OPTION_3_LABEL: DOCLING_CHROMA_BM25_COLLECTION_NAME,
     OPTION_4_LABEL: DOCLING_CHROMA_BM25_EXPANSION_COLLECTION_NAME,
+    OPTION_5_LABEL: RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME,
 }
 COLLECTION_SLUGS = {
     ORIGINAL_COLLECTION_NAME: "pypdf_chroma",
     DOCLING_COLLECTION_NAME: "docling_chroma",
     DOCLING_CHROMA_BM25_COLLECTION_NAME: "docling_chroma_bm25_hybrid",
     DOCLING_CHROMA_BM25_EXPANSION_COLLECTION_NAME: "docling_chroma_bm25_expansion",
+    RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME: "rag_anything_lightrag_option5",
 }
 LEGACY_COLLECTION_LABELS = {
     "Original": OPTION_1_LABEL,
@@ -62,6 +66,31 @@ def _env_float(name: str, default: str) -> float:
 
 def _env_bool(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).lower() in {"1", "true", "yes", "on"}
+
+
+def _env_path(name: str, default: str) -> Path:
+    raw_path = Path(os.getenv(name, default))
+    return raw_path if raw_path.is_absolute() else ROOT_DIR / raw_path
+
+
+def _option5_storage_dir() -> Path:
+    return _env_path("RAG_ANYTHING_OPTION5_STORAGE_DIR", "vectorstore/rag_anything_lightrag_option5")
+
+
+def _option5_child_dir(name: str, default_child: str) -> Path:
+    storage_dir = _option5_storage_dir()
+    raw_value = os.getenv(name)
+    if not raw_value:
+        return storage_dir / default_child
+    configured_path = Path(raw_value)
+    resolved_path = configured_path if configured_path.is_absolute() else ROOT_DIR / configured_path
+    try:
+        resolved_path.relative_to(storage_dir)
+        return resolved_path
+    except ValueError:
+        if _env_bool("RAG_ANYTHING_OPTION5_ALLOW_EXTERNAL_DIRS"):
+            return resolved_path
+        return storage_dir / default_child
 
 
 def _openai_api_key() -> str | None:
@@ -123,6 +152,80 @@ class Settings:
     docling_page_chunk_size: int = field(default_factory=lambda: _env_int("DOCLING_PAGE_CHUNK_SIZE", "30"))
     docling_page_overlap: int = field(default_factory=lambda: _env_int("DOCLING_PAGE_OVERLAP", "5"))
     bm25_index_file: str = field(default_factory=lambda: _env_str("BM25_INDEX_FILE", "docling_bm25_chunks.json"))
+    option5_enabled: bool = field(default_factory=lambda: _env_bool("OPTION5_ENABLED", "true"))
+    rag_anything_storage_dir: Path = field(default_factory=_option5_storage_dir)
+    lightrag_working_dir: Path = field(default_factory=lambda: _option5_child_dir("LIGHTRAG_WORKING_DIR", "lightrag"))
+    rag_anything_output_dir: Path = field(
+        default_factory=lambda: _option5_child_dir("RAG_ANYTHING_OPTION5_OUTPUT_DIR", "processed")
+    )
+    rag_anything_parser: str = field(default_factory=lambda: _env_lower("RAG_ANYTHING_PARSER", "docling"))
+    rag_anything_parse_method: str = field(default_factory=lambda: _env_lower("RAG_ANYTHING_PARSE_METHOD", "auto"))
+    rag_anything_file_extensions: str = field(
+        default_factory=lambda: _env_str("RAG_ANYTHING_FILE_EXTENSIONS", ".pdf,.html,.htm,.md,.txt,.docx,.xlsx")
+    )
+    rag_anything_enable_image_processing: bool = field(
+        default_factory=lambda: _env_bool("RAG_ANYTHING_ENABLE_IMAGE_PROCESSING", "false")
+    )
+    rag_anything_enable_table_processing: bool = field(
+        default_factory=lambda: _env_bool("RAG_ANYTHING_ENABLE_TABLE_PROCESSING", "true")
+    )
+    rag_anything_enable_equation_processing: bool = field(
+        default_factory=lambda: _env_bool("RAG_ANYTHING_ENABLE_EQUATION_PROCESSING", "false")
+    )
+    rag_anything_section_relations: bool = field(
+        default_factory=lambda: _env_bool("RAG_ANYTHING_SECTION_RELATIONS", "true")
+    )
+    rag_anything_max_concurrent_files: int = field(
+        default_factory=lambda: _env_int("RAG_ANYTHING_MAX_CONCURRENT_FILES", "3")
+    )
+    rag_anything_docling_tables: bool = field(
+        default_factory=lambda: _env_bool("RAG_ANYTHING_DOCLING_TABLES", "true")
+    )
+    rag_anything_retry_without_tables: bool = field(
+        default_factory=lambda: _env_bool("RAG_ANYTHING_RETRY_WITHOUT_TABLES", "true")
+    )
+    rag_anything_docling_table_mode: str = field(
+        default_factory=lambda: _env_lower("RAG_ANYTHING_DOCLING_TABLE_MODE", "fast")
+    )
+    enable_pre_extraction_chunking: bool = field(
+        default_factory=lambda: _env_bool("ENABLE_PRE_EXTRACTION_CHUNKING", "true")
+    )
+    target_extraction_chunk_tokens: int = field(
+        default_factory=lambda: _env_int("TARGET_EXTRACTION_CHUNK_TOKENS", "4000")
+    )
+    max_extraction_chunk_tokens: int = field(
+        default_factory=lambda: _env_int("MAX_EXTRACTION_CHUNK_TOKENS", "7000")
+    )
+    save_oversized_item_audit: bool = field(
+        default_factory=lambda: _env_bool("SAVE_OVERSIZED_ITEM_AUDIT", "true")
+    )
+    oversized_item_audit_dir: Path = field(
+        default_factory=lambda: _option5_child_dir("OVERSIZED_ITEM_AUDIT_DIR", "audit/oversized_items")
+    )
+    lightrag_mode: str = field(default_factory=lambda: _env_lower("LIGHTRAG_MODE", "mix"))
+    lightrag_top_k: int = field(default_factory=lambda: _env_int("LIGHTRAG_TOP_K", "10"))
+    lightrag_chunk_top_k: int = field(default_factory=lambda: _env_int("LIGHTRAG_CHUNK_TOP_K", "10"))
+    lightrag_max_total_tokens: int = field(default_factory=lambda: _env_int("LIGHTRAG_MAX_TOTAL_TOKENS", "12000"))
+    lightrag_rerank_enabled: bool = field(default_factory=lambda: _env_bool("LIGHTRAG_RERANK_ENABLED", "true"))
+    lightrag_rerank_model: str = field(
+        default_factory=lambda: _env_str("LIGHTRAG_RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L6-v2")
+    )
+    lightrag_min_rerank_score: float = field(default_factory=lambda: _env_float("LIGHTRAG_MIN_RERANK_SCORE", "0.0"))
+    lightrag_embedding_model: str = field(
+        default_factory=lambda: _env_str("LIGHTRAG_EMBEDDING_MODEL", _env_str("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"))
+    )
+    lightrag_llm_model: str = field(
+        default_factory=lambda: _env_str("LIGHTRAG_LLM_MODEL", _env_str("OPENAI_MODEL", "gpt-4.1-mini"))
+    )
+    option5_web_fallback_enabled: bool = field(
+        default_factory=lambda: _env_bool("OPTION5_WEB_FALLBACK_ENABLED", "true")
+    )
+    allowed_web_domains: str = field(
+        default_factory=lambda: _env_str(
+            "ALLOWED_WEB_DOMAINS",
+            "cobbcounty.gov,www.cobbcounty.org,cobbcountyga.gov,dca.georgia.gov,oci.georgia.gov,rules.sos.ga.gov",
+        )
+    )
 
     langsmith_tracing: str | None = field(default_factory=lambda: _env_optional("LANGSMITH_TRACING"))
     langsmith_project: str | None = field(default_factory=lambda: _env_optional("LANGSMITH_PROJECT"))

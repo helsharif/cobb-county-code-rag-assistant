@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from urllib.parse import urlparse
+
 import requests
 from langchain_core.tools import tool
 
@@ -32,17 +34,19 @@ def retrieve_cobb_county_documents(query: str) -> str:
 
 
 def web_search(query: str) -> str:
-    """Run SerpAPI Google Search and return concise source-bearing results."""
+    """Run SerpAPI Google Search and return official-domain source-bearing results."""
 
     settings = get_settings()
     if not settings.serpapi_api_key:
         return "No web search results found. SERPAPI_API_KEY is not configured."
+    allowed_domains = _allowed_domains(settings.allowed_web_domains)
+    scoped_query = _domain_scoped_query(query, allowed_domains)
 
     response = requests.get(
         "https://serpapi.com/search.json",
         params={
             "engine": "google",
-            "q": query,
+            "q": scoped_query,
             "api_key": settings.serpapi_api_key,
             "num": 5,
             "safe": "active",
@@ -56,11 +60,16 @@ def web_search(query: str) -> str:
         return "No web search results found."
 
     formatted: list[str] = []
-    for index, item in enumerate(results, start=1):
+    for item in results:
         title = item.get("title", "Untitled")
         link = item.get("link", "")
+        if not _is_allowed_url(link, allowed_domains):
+            continue
         snippet = item.get("snippet", "")
+        index = len(formatted) + 1
         formatted.append(f"[Web {index}] {title}\n{link}\n{snippet}")
+    if not formatted:
+        return "No web search results found from approved official domains."
     return "\n\n".join(formatted)
 
 
@@ -72,3 +81,25 @@ def search_web_for_cobb_codes(query: str) -> str:
 
 
 TOOLS = [retrieve_cobb_county_documents, search_web_for_cobb_codes]
+
+
+def _allowed_domains(raw_domains: str) -> list[str]:
+    domains = [domain.strip().lower() for domain in raw_domains.split(",") if domain.strip()]
+    return domains or ["cobbcounty.gov", "dca.georgia.gov"]
+
+
+def _domain_scoped_query(query: str, allowed_domains: list[str]) -> str:
+    if "site:" in query.lower():
+        return query
+    site_clause = " OR ".join(f"site:{domain}" for domain in allowed_domains)
+    return f"({site_clause}) {query}"
+
+
+def _is_allowed_url(url: str, allowed_domains: list[str]) -> bool:
+    try:
+        host = urlparse(url).netloc.lower()
+    except Exception:
+        return False
+    if not host:
+        return False
+    return any(host == domain or host.endswith(f".{domain}") for domain in allowed_domains)
