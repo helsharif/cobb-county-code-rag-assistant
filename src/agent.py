@@ -172,6 +172,7 @@ class CobbCountyRAGAgent:
             docs,
             local_sources,
             collection_name=self.collection_name,
+            max_chars=self._local_context_char_limit(),
         )
         if self.collection_name != RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME:
             docs, local_sources = rerank_documents(question, docs, local_sources)
@@ -278,10 +279,9 @@ class CobbCountyRAGAgent:
             web_query=web_query,
         )
 
-    @staticmethod
-    def _format_local_context(docs, sources: list[RetrievedSource]) -> str:
+    def _format_local_context(self, docs, sources: list[RetrievedSource]) -> str:
         blocks: list[str] = []
-        remaining_chars = 18000
+        remaining_chars = self._local_context_char_limit()
         for index, (doc, source) in enumerate(zip(docs, sources), start=1):
             if remaining_chars <= 0:
                 break
@@ -307,12 +307,9 @@ class CobbCountyRAGAgent:
     def _evidence_is_answerable(self, question: str, evidence: str) -> bool:
         if not evidence.strip():
             return False
-        from src.config import get_settings
-
-        settings = get_settings()
         try:
             response = (self.adequacy_prompt | self.llm).invoke(
-                {"question": question, "evidence": evidence[: settings.context_max_chars]}
+                {"question": question, "evidence": evidence[: self._local_context_char_limit()]}
             )
             content = getattr(response, "content", str(response)).strip()
             data = self._parse_route_json(content)
@@ -331,6 +328,12 @@ class CobbCountyRAGAgent:
         except Exception as exc:
             logger.warning("Strict evidence adequacy check failed; rejecting evidence: %s", exc)
             return False
+
+    def _local_context_char_limit(self) -> int:
+        settings = get_settings()
+        if self.collection_name == RAG_ANYTHING_LIGHTRAG_COLLECTION_NAME:
+            return settings.option5_context_max_chars
+        return settings.context_max_chars
 
     def _route_query(self, question: str) -> QueryRoute:
         fallback = QueryRoute(

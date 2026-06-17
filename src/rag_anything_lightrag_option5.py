@@ -314,7 +314,10 @@ async def _search_option5_async(
             only_need_context=True,
             top_k=top_k,
             chunk_top_k=settings.lightrag_chunk_top_k,
+            max_entity_tokens=settings.lightrag_max_entity_tokens,
+            max_relation_tokens=settings.lightrag_max_relation_tokens,
             max_total_tokens=settings.lightrag_max_total_tokens,
+            enable_rerank=settings.lightrag_rerank_enabled,
         )
     except TypeError:
         # Older RAG-Anything versions accept only question/mode and pass fewer

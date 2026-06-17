@@ -143,9 +143,12 @@ RAG_ANYTHING_RETRY_WITHOUT_TABLES=true
 RAG_ANYTHING_DOCLING_TABLE_MODE=fast
 LIGHTRAG_WORKING_DIR=vectorstore/rag_anything_lightrag_option5/lightrag
 LIGHTRAG_MODE=mix
-LIGHTRAG_TOP_K=10
-LIGHTRAG_CHUNK_TOP_K=10
-LIGHTRAG_MAX_TOTAL_TOKENS=12000
+LIGHTRAG_TOP_K=20
+LIGHTRAG_CHUNK_TOP_K=30
+LIGHTRAG_MAX_ENTITY_TOKENS=6000
+LIGHTRAG_MAX_RELATION_TOKENS=8000
+LIGHTRAG_MAX_TOTAL_TOKENS=30000
+OPTION5_CONTEXT_MAX_CHARS=60000
 LIGHTRAG_EMBEDDING_MODEL=text-embedding-3-small
 LIGHTRAG_LLM_MODEL=gpt-4.1-mini
 OPTION5_WEB_FALLBACK_ENABLED=true
@@ -158,6 +161,8 @@ OVERSIZED_ITEM_AUDIT_DIR=vectorstore/rag_anything_lightrag_option5/audit/oversiz
 ```
 
 Query Option 5 by selecting **Option 5: RAG-Anything + LightRAG KG Search** in the Settings & Eval tab. Retrieval uses LightRAG `mix` mode by default, which combines knowledge graph local/global retrieval with vector retrieval where supported.
+
+Option 5 uses broader LightRAG retrieval than the other modes because mixed graph/vector retrieval can otherwise over-focus on extracted entities. `LIGHTRAG_TOP_K=20` and `LIGHTRAG_CHUNK_TOP_K=30` let more graph hits and vector chunks compete before LightRAG reranking. Option 5 also keeps its own context budget because mixed-mode retrieval can return a large bundle of entities, relations, and reranked text chunks. `LIGHTRAG_MAX_TOTAL_TOKENS=30000` gives LightRAG enough room to include table/code chunks after graph context, and `OPTION5_CONTEXT_MAX_CHARS=60000` controls how much of that LightRAG context the app passes into the strict adequacy gate and final answer prompt.
 
 Before LightRAG extraction, Option 5 estimates token counts for generated document/table chunks and splits oversized items into extraction-safe parts. Split chunks keep source metadata such as source file, content type, original item ID, part number, page/caption context, parent document ID, and parent content item ID. Full oversized originals and split parts are saved under the audit folder with a JSONL manifest so truncation events can be reviewed.
 

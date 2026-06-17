@@ -28,7 +28,7 @@ Default retrieval depth:
 - Options 1 and 2 return the top Chroma results.
 - Option 3 fuses Chroma and BM25 results, then keeps the top `RETRIEVER_K`.
 - Option 4 expands the original query into five total queries, retrieves hybrid results for each, deduplicates, fuses, then keeps the top `RETRIEVER_K`.
-- Option 5 uses `LIGHTRAG_TOP_K` and `LIGHTRAG_CHUNK_TOP_K` for LightRAG mixed-mode graph/vector retrieval.
+- Option 5 uses broader LightRAG retrieval by default: `LIGHTRAG_TOP_K=20`, `LIGHTRAG_CHUNK_TOP_K=30`, `LIGHTRAG_MAX_TOTAL_TOKENS=30000`, and `OPTION5_CONTEXT_MAX_CHARS=60000` for mixed-mode graph/vector retrieval and app-side evidence gating.
 
 ## Main User-Facing Flow
 
@@ -221,6 +221,7 @@ Reranking rule:
 - The highest-scoring expanded blocks are kept for adequacy checking and answer generation.
 - Each reranked document records `cross_encoder_model`, `cross_encoder_score`, `pre_rerank_position`, and `pre_rerank_score` in metadata.
 - Option 5 is not reranked again in the agent; LightRAG performs its own configured reranking during mixed-mode retrieval.
+- Option 5 keeps a separate larger context budget so graph entities/relations do not crowd out reranked table or code chunks before the adequacy gate.
 
 The goal is to make the strict adequacy gate inspect the strongest expanded evidence blocks rather than only the original retrieval order.
 
