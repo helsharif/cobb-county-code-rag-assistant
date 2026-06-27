@@ -1,0 +1,14 @@
+command: ['streamlit', 'run', 'app.py']
+env:
+  - name: 'STREAMLIT_GATHER_USAGE_STATS'
+    value: 'false'
+  - name: 'CHUNKS_TABLE'
+    value: 'cobb_rag.fire_code.document_chunks'
+  - name: 'AI_SEARCH_INDEX_NAME'
+    value: 'cobb_rag.fire_code.document_chunks_hybrid_index'
+  - name: 'CHAT_MODEL_ENDPOINT'
+    valueFrom: serving_endpoint
+  - name: 'DATABRICKS_WAREHOUSE_ID'
+    valueFrom: sql_warehouse
+  - name: 'HF_TOKEN'
+    valueFrom: hf_token

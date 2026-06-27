@@ -1,0 +1,7 @@
+streamlit
+databricks-vectorsearch
+databricks-ai-search
+databricks-sdk
+pandas
+sentence-transformers
+torch

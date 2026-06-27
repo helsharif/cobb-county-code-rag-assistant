@@ -1,0 +1,12 @@
+{
+  "run_id": "databricks-rag-eval-20260627-055203",
+  "timestamp_utc": "2026-06-27T06:06:50.139899+00:00",
+  "question_count": 50,
+  "faithfulness": 0.92,
+  "answer_relevance": 0.88,
+  "context_precision": 0.875,
+  "context_recall": 0.855,
+  "latency_average": 9.693419999999998,
+  "latency_p50": 8.9185,
+  "latency_p99": 24.66691999999999
+}

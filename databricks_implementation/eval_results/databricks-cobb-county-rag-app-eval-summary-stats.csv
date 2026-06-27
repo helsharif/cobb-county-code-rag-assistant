@@ -1,0 +1,2 @@
+run_id,timestamp_utc,question_count,faithfulness,answer_relevance,context_precision,context_recall,latency_average,latency_p50,latency_p99
+databricks-rag-eval-20260627-055203,2026-06-27T06:06:50.139899+00:00,50,0.92,0.88,0.875,0.855,9.693419999999998,8.9185,24.66691999999999
