@@ -777,6 +777,39 @@ docker compose run --rm cobb-county-rag python -m src.ingestion --rebuild --pipe
 
 ---
 
+## Databricks Implementation
+
+This repository also includes a Databricks implementation under `databricks_implementation/`. It adapts the local RAG design for a lakehouse workflow: source documents are loaded from a Unity Catalog volume, chunked into managed Delta tables, indexed through Databricks AI Search hybrid retrieval, and served through a Databricks Streamlit app. The Databricks version keeps the same core behavior as the local app where practical, including neighbor context expansion, optional CrossEncoder reranking, source-grounded answer generation, and a fixed 50-question evaluation set.
+
+Key Databricks assets include:
+
+- `01_build_fire_code_chunks.py`: builds document chunks from files stored in Unity Catalog volumes.
+- `03_databricks_rag_pipeline.py`: connects to the Databricks AI Search hybrid index and runs the RAG pipeline.
+- `05_evaluate_databricks_rag_updated.py`: evaluates the Databricks app with the same 50-question golden test set.
+- `cobb-county-rag-app/`: Streamlit app files for deployment as a Databricks app.
+
+Databricks evaluation results are saved under `databricks_implementation/eval_results/`. The run below used 50 questions and was recorded in `summary.json` as `databricks-rag-eval-20260627-055203`.
+
+| Metric | Score |
+|---|---:|
+| Faithfulness | 0.920 |
+| Answer relevance | 0.880 |
+| Context precision | 0.875 |
+| Context recall | 0.855 |
+| Average latency | 9.69 sec |
+| P50 latency | 8.92 sec |
+| P99 latency | 24.67 sec |
+
+Overall, the Databricks version preserves strong answer grounding and retrieval quality while moving the document and search layers into managed Databricks services. The main tradeoff is latency: the managed app and model-serving path averaged just under 10 seconds per question in this evaluation, with higher tail latency on more complex retrieval or generation cases.
+
+![Databricks AI Search hybrid index](databricks_implementation/visuals/databrick_cobb_rag_document_chunks_hybrid_index.png)
+
+![Databricks Unity Catalog assets](databricks_implementation/visuals/databrick_cobb_rag_unity_catalog.png)
+
+![Databricks Streamlit app example query](databricks_implementation/visuals/databrick_cobb_rag_streamlit_app_example_query.png)
+
+---
+
 ## Disclaimer
 
 This project is for portfolio demonstration and educational purposes only. It is not legal, engineering, building code, fire code, or permitting advice.
