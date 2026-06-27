@@ -802,11 +802,11 @@ Databricks evaluation results are saved under `databricks_implementation/eval_re
 
 Overall, the Databricks version preserves strong answer grounding and retrieval quality while moving the document and search layers into managed Databricks services. The main tradeoff is latency: the managed app and model-serving path averaged just under 10 seconds per question in this evaluation, with higher tail latency on more complex retrieval or generation cases.
 
-![Databricks AI Search hybrid index](databricks_implementation/visuals/databrick_cobb_rag_document_chunks_hybrid_index.png)
+![Databricks AI Search hybrid index](databricks_implementation/visuals/databricks_cobb_rag_document_chunks_hybrid_index.png)
 
-![Databricks Unity Catalog assets](databricks_implementation/visuals/databrick_cobb_rag_unity_catalog.png)
+![Databricks Unity Catalog assets](databricks_implementation/visuals/databricks_cobb_rag_unity_catalog.png)
 
-![Databricks Streamlit app example query](databricks_implementation/visuals/databrick_cobb_rag_streamlit_app_example_query.png)
+![Databricks Streamlit app example query](databricks_implementation/visuals/databricks_cobb_rag_streamlit_app_example_query.png)
 
 ---
 
